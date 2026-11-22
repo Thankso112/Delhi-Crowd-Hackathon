@@ -1,8 +1,7 @@
 """TransitEngine: the data layer behind the CrowdWise-compatible HTTP API (see docs/API.md).
 Built on planner.engine.Planner (GTFS graph + crowd table); adds stop search with aliases, timed journey options,
 per-stretch segments, departure shifts, route catalogue and operator hotspots, all in the contract's JSON shape."""
-import gc, ctypes
-import json, math
+import json, math, gc, ctypes
 from collections import Counter
 from pathlib import Path
 import numpy as np, pandas as pd
@@ -20,6 +19,10 @@ BAND_HOURS = {b: hi - lo for b, (lo, hi) in config.BANDS.items()}
 def hhmm(minutes: float) -> str:
     m = int(round(minutes)) % (24 * 60)
     return f"{m // 60:02d}:{m % 60:02d}"
+
+def pct(ratio) -> int:
+    """Load ratio (share of crush capacity) -> integer percent, clamped to 0..100 for display."""
+    return int(max(0, min(100, round(float(ratio) * 100))))
 
 class TransitEngine(Planner):
     def __init__(self):
@@ -44,9 +47,15 @@ class TransitEngine(Planner):
         self.mlMetrics = self.ml
         self._build_stop_index()
         self._build_route_index()
+        self._build_hourly_network()
         gc.collect()
-        try : ctypes.CDLL("libc.so.6").malloc_trim(0)
+        try: ctypes.CDLL("libc.so.6").malloc_trim(0)                    # hand freed memory back to the OS (Linux only)
         except Exception: pass
+
+    @staticmethod
+    def _dir_label(route_name):
+        r = str(route_name).upper()
+        return "Down" if r.endswith("DOWN") else ("Up" if r.endswith("UP") else None)
 
     # ------------------------------------------------------------------ stops
     def _build_stop_index(self):
@@ -58,7 +67,9 @@ class TransitEngine(Planner):
         self.sidx_names = s.name_n.tolist()
 
     def _rec(self, r, method="", score=0.0):
-        return dict(stop_id=str(r.stop_id), stop_name=r.stop_name, lat=float(r.lat), lng=float(r.lon), num_routes=int(r.num_routes), match_method=method, match_score=round(float(score), 1))
+        routes = sorted({k[0] for k, _ in self.at_stop.get(r.stop_id, [])})
+        return dict(stop_id=str(r.stop_id), stop_name=r.stop_name, lat=float(r.lat), lng=float(r.lon), num_routes=int(r.num_routes), routes=routes[:30],
+                    match_method=method, match_score=round(float(score), 1))
 
     def _norm_query(self, q):
         return " ".join(ALIASES.get(t, t) for t in norm_name(q).split())
@@ -116,9 +127,13 @@ class TransitEngine(Planner):
                 else:
                     load, ntr, lvl, conf, src = float("nan"), 0, "unknown", "low", "route_average"
             ratio = None if not np.isfinite(load) else round(float(load) / crush, 3)
+            est = None if ratio is None else round(ratio * crush)
             out.append(dict(sequence=pos, from_stop=p["names"][pos], to_stop=p["names"][pos + 1], from_stop_id=p["stop_ids"][pos], to_stop_id=p["stop_ids"][pos + 1],
-                            load_ratio=ratio, est_passengers=None if ratio is None else round(ratio * crush), crowd_level=LV.get(lvl, "unknown"), confidence=conf,
-                            prediction_source=src, ticket_count=ntr))
+                            from_name=p["names"][pos], to_name=p["names"][pos + 1],
+                            load_ratio=ratio, load_pct=None if ratio is None else pct(ratio), est_passengers=est, estimated_passengers=est,
+                            crowd_level=LV.get(lvl, "unknown"), crowding=str(lvl) if lvl in LV else "unknown", confidence=conf,
+                            prediction_source=src, ticket_count=ntr,
+                            coordinates=[[float(p["lat"][pos]), float(p["lon"][pos])], [float(p["lat"][pos + 1]), float(p["lon"][pos + 1])]]))
         return out
 
     def _summ(self, segs):
@@ -155,9 +170,11 @@ class TransitEngine(Planner):
                 t += l["wait_min"]; dep = t; t += l["ride_min"]; arr = t
                 if li < len(r["legs"]) - 1: t += self._walk_min(r["transfer_walk_m"])
                 segs = self.segments_for(l["key"], l["i"], l["j"], day_type, band); allsegs += segs; sm = self._summ(segs); p = self.patterns[l["key"]]
-                legs.append(dict(route_id=p["route_id"], route_short_name=l["route"], direction_id=int(l["dir"]),
+                legs.append(dict(route_id=p["route_id"], route_short_name=l["route"], direction_id=int(l["dir"]), direction=self._dir_label(l["route"]),
                                  from_stop=dict(stop_id=p["stop_ids"][l["i"]], stop_name=l["from_stop"], lat=float(p["lat"][l["i"]]), lng=float(p["lon"][l["i"]])),
                                  to_stop=dict(stop_id=p["stop_ids"][l["j"]], stop_name=l["to_stop"], lat=float(p["lat"][l["j"]]), lng=float(p["lon"][l["j"]])),
+                                 intermediate_stops=[dict(stop_id=p["stop_ids"][q], stop_name=p["names"][q], lat=float(p["lat"][q]), lng=float(p["lon"][q]))
+                                                     for q in range(l["i"] + 1, l["j"])],
                                  departure_time=hhmm(dep), arrival_time=hhmm(arr), ride_min=round(l["ride_min"], 1), wait_min=round(l["wait_min"], 1), num_stops=int(l["n_stops"]),
                                  is_ac=bool(l["crowd"]["is_ac"]), polyline=l["path"], segments=segs, **sm))
             ride, wait = sum(x["ride_min"] for x in legs), sum(x["wait_min"] for x in legs)
@@ -166,6 +183,11 @@ class TransitEngine(Planner):
             opts.append(dict(total_duration_min=int(r["total_min"]), in_vehicle_min=round(ride), wait_min=round(wait), walk_min=max(0, round(r["total_min"] - ride - wait)), transfers=int(r["transfers"]),
                              avg_crowd_level=self._avg_level(so["avg_load_ratio"], ac), legs=legs, _score=score, _ac=ac, **so))
         opts.sort(key=lambda x: x["_score"]); opts = opts[:max(1, int(limit))]
+        for x in opts:                                                      # aliases some frontends read
+            x["duration_minutes"] = x["total_duration_min"]
+            x["overall_crowding"] = x["max_crowd_level"]
+            x["peak_load_pct"] = pct(x["max_load_ratio"])
+            x["avg_load_pct"] = pct(x["avg_load_ratio"])
         if opts:
             fastest = min(opts, key=lambda x: x["total_duration_min"]); calm = min(opts, key=lambda x: (x["max_load_ratio"], x["total_duration_min"]))
         for n, x in enumerate(opts, 1):
@@ -207,11 +229,16 @@ class TransitEngine(Planner):
     def _build_route_index(self):
         rows = []
         for (r, d), p in self.patterns.items():
-            rows.append(dict(route_id=p["route_id"], route_short_name=r, direction_id=int(d), num_stops=len(p["stop_ids"]), is_ac=bool(self.attrs.get(p["route_n"], 0)),
-                             origin_stop=p["names"][0], destination_stop=p["names"][-1], route_long_name=f"{p['names'][0]} to {p['names'][-1]}"))
+            rows.append(dict(route_id=p["route_id"], route_short_name=r, direction_id=int(d), direction=self._dir_label(r), num_stops=len(p["stop_ids"]), is_ac=bool(self.attrs.get(p["route_n"], 0)),
+                             origin_stop=p["names"][0], destination_stop=p["names"][-1], origin_name=p["names"][0], destination_name=p["names"][-1],
+                             route_long_name=f"{p['names'][0]} to {p['names'][-1]}", corridor_label=f"{p['names'][0]} – {p['names'][-1]}"))
         self.route_df = pd.DataFrame(rows).sort_values(["route_short_name", "direction_id"]).reset_index(drop=True)
-        tp = pd.read_parquet(config.PROC / "route_hourly.parquet").groupby(["route", "dir"]).n_trips.sum()
-        self.route_df["trips_per_day"] = [int(tp.get((r, d), 0)) for r, d in zip(self.route_df.route_short_name, self.route_df.direction_id)]
+        hr = pd.read_parquet(config.PROC / "route_hourly.parquet")
+        tp = hr.groupby(["route", "dir"]).n_trips.sum()
+        pk = hr.groupby(["route", "dir"]).n_trips.max()                     # trips in the busiest hour
+        keys = list(zip(self.route_df.route_short_name, self.route_df.direction_id))
+        self.route_df["trips_per_day"] = [int(tp.get(k, 0)) for k in keys]
+        self.route_df["headway_minutes"] = pd.Series([round(60 / pk.get(k), 1) if pk.get(k, 0) > 0 else None for k in keys], dtype=object, index=self.route_df.index)
 
     def listRoutes(self, q="", limit=100, offset=0):
         df = self.route_df
@@ -229,27 +256,59 @@ class TransitEngine(Planner):
         r = m.iloc[0]; key = (r.route_short_name, int(r.direction_id)); p = self.patterns[key]; band = band_of(int(hour) % 24)
         segs = self.segments_for(key, 0, len(p["stop_ids"]) - 1, day_type, band)
         stops = [dict(stop_id=sid, stop_name=nm, lat=float(a), lng=float(b), sequence=i) for i, (sid, nm, a, b) in enumerate(zip(p["stop_ids"], p["names"], p["lat"], p["lon"]))]
-        return dict(route_id=r.route_id, route_short_name=r.route_short_name, direction_id=int(r.direction_id), is_ac=bool(r.is_ac), day_type=day_type, hour=int(hour), band=band,
-                    num_stops=len(stops), stops=stops, segments=segs, polyline=[[s["lat"], s["lng"]] for s in stops], summary=self._summ(segs))
+        summ = self._summ(segs); known = [s for s in segs if s["load_ratio"] is not None]
+        top = max(known, key=lambda s: s["load_ratio"], default=None)
+        return dict(route_id=r.route_id, route_short_name=r.route_short_name, direction_id=int(r.direction_id), direction=self._dir_label(r.route_short_name),
+                    is_ac=bool(r.is_ac), day_type=day_type, hour=int(hour), band=band, num_stops=len(stops), stops=stops, segments=segs,
+                    polyline=[[s["lat"], s["lng"]] for s in stops], summary=summ,
+                    busiest_stretch=f"{top['from_stop']} – {top['to_stop']}" if top else None,
+                    avg_load_pct=pct(summ["avg_load_ratio"]), crowding=summ["max_crowd_level"], confidence=summ["confidence"],
+                    ticket_count=summ["ticket_count"], prediction_source=summ["prediction_source"])
 
     # --------------------------------------------------------------- operator
+    def _build_hourly_network(self):
+        """Network-wide average load per (day type, time band), weighted by scheduled trips per day. The model works in bands, so hours in one band share a value."""
+        c = self.cells
+        crush = np.where(c.is_ac.fillna(0).astype(bool), config.CAPACITY["ac"]["crush"], config.CAPACITY["nonac"]["crush"])
+        ratio = np.minimum(c.load_raw.to_numpy(dtype=float) / crush, config.LOAD_CAP_FACTOR)
+        w = c.trips_per_day.to_numpy(dtype=float)
+        d = pd.DataFrame({"daytype": c.daytype.values, "band": c.band.values, "rw": ratio * w, "w": w, "over": (c.level == "crowded").to_numpy()})
+        g = d.groupby(["daytype", "band"], observed=True).agg(rw=("rw", "sum"), w=("w", "sum"), over=("over", "sum"))
+        self.net_band = {(str(a), str(b)): (float(v.rw / v.w) if v.w else 0.0, int(v.over)) for (a, b), v in g.iterrows()}
+        del d, ratio, w, crush
+
+    def _hourly_network(self, day_type):
+        out = []
+        for h in range(5, 24):
+            avg, over = self.net_band.get((day_type, band_of(h)), (0.0, 0))
+            out.append(dict(hour=h, avg_load_pct=pct(avg), overloaded_count=over,
+                            crowding="seats" if avg < 0.52 else ("standing" if avg < 0.75 else "crowded")))
+        return out
+
     def getOperatorHotspots(self, day_type="weekday", hour=9, limit=20, min_confidence="low"):
         day_type = "weekend" if str(day_type) == "weekend" else "weekday"; hour = int(hour) % 24; band = band_of(hour)
         c = self.cells[(self.cells.daytype == day_type) & (self.cells.band == band)]
         c = c[c.confidence.map(CONF_RANK) >= CONF_RANK.get(min_confidence, 0)].copy()
         crush = np.where(c.is_ac.fillna(0).astype(bool), config.CAPACITY["ac"]["crush"], config.CAPACITY["nonac"]["crush"])
-        c["ratio"] = np.minimum(c.load_raw / crush, config.LOAD_CAP_FACTOR)
-        c = c.sort_values(["ratio", "n_tickets"], ascending=False).head(max(1, min(int(limit), 200)))
+        c["rank_ratio"] = np.minimum(c.load_raw / crush, config.LOAD_CAP_FACTOR)   # rank on the capped value: uncapped values can be scaling artefacts
+        c = c.sort_values(["rank_ratio", "n_tickets"], ascending=False).drop_duplicates(["route_n", "dir"]).head(max(1, min(int(limit), 200)))
         out = []
         for n, r in enumerate(c.itertuples(), 1):
             key = self.by_rn.get((r.route_n, int(r.dir)))
             if key is None: continue
-            p = self.patterns[key]; buses_hr = r.trips_per_day / BAND_HOURS[band]
-            extra = int(min(20, max(0, math.ceil(buses_hr * (r.ratio / config.STANDING_FRACTION_OF_CRUSH - 1)))))
-            out.append(dict(rank=n, route_id=p["route_id"], route_short_name=p["route"], direction_id=int(r.dir), from_stop=p["names"][int(r.pos)], to_stop=p["names"][int(r.pos) + 1],
-                            sequence=int(r.pos), load_ratio=round(float(r.ratio), 3), est_passengers=round(float(r.ratio) * self._crush(r.route_n)), crowd_level=LV[r.level], confidence=r.confidence,
-                            ticket_count=int(r.n_tickets), prediction_source=r.prediction_source, scheduled_trips_per_hour=round(buses_hr, 2), suggested_extra_buses_hr=extra))
-        return dict(day_type=day_type, hour=hour, band=band, min_confidence=min_confidence, count=len(out), hotspots=out)
+            p = self.patterns[key]; pos = int(r.pos); ratio = float(r.rank_ratio); buses_hr = r.trips_per_day / BAND_HOURS[band]
+            extra = int(min(20, max(0, math.ceil(buses_hr * (ratio / config.STANDING_FRACTION_OF_CRUSH - 1)))))
+            est = round(ratio * self._crush(r.route_n)); fs, ts = p["names"][pos], p["names"][pos + 1]
+            out.append(dict(rank=n, route_id=p["route_id"], route_short_name=p["route"], route_long_name=f"{p['names'][0]} to {p['names'][-1]}",
+                            direction_id=int(r.dir), direction=self._dir_label(p["route"]), corridor=f"{p['names'][0]} – {p['names'][-1]}",
+                            busiest_stretch=f"{fs} – {ts}", hour=hour, from_stop=fs, to_stop=ts,
+                            origin_stop_id=p["stop_ids"][pos], origin_name=fs, destination_stop_id=p["stop_ids"][pos + 1], destination_name=ts, sequence=pos,
+                            load_ratio=round(ratio, 3), load_pct=pct(ratio), est_passengers=est, estimated_passengers=est,
+                            crowd_level=LV[str(r.level)], crowding=str(r.level), confidence=r.confidence, ticket_count=int(r.n_tickets),
+                            prediction_source=r.prediction_source, scheduled_trips_per_hour=round(buses_hr, 2),
+                            headway_minutes=round(60 / buses_hr, 1) if buses_hr > 0 else None, suggested_extra_buses_hr=extra))
+        return dict(day_type=day_type, hour=hour, band=band, min_confidence=min_confidence, count=len(out), hotspots=out,
+                    hourly_network=self._hourly_network(day_type))
 
     # ------------------------------------------------------------ meta/health
     def getHealth(self):
