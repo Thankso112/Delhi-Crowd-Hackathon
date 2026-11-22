@@ -1,4 +1,5 @@
 """Static-GTFS bus journey planner (direct + one transfer) with a crowd level attached to every option."""
+import sys, math, gc
 import sys, math
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -40,7 +41,8 @@ class Planner:
         hr = pd.read_parquet(P / "route_hourly.parquet")
         self.trips_hr = hr.groupby(["route", "dir", "hour"]).n_trips.sum().to_dict()
         # crowd lookup: (route_n, dir, daytype, band) -> arrays by pos
-        cs = pd.read_parquet(P / "crowd_segments.parquet")
+        cs = pd.read_parquet(P / "crowd_segments.parquet", columns=["route_n", "dir", "daytype", "band", "pos", "load_adj", "n_tickets", "level", "confidence"])
+        cs["level"] = cs["level"].astype("category"); cs["confidence"] = cs["confidence"].astype("category")
         self.crowd = {}
         for k, g in cs.groupby(["route_n", "dir", "daytype", "band"]):
             n = int(g.pos.max()) + 2
@@ -48,6 +50,7 @@ class Planner:
             load[g.pos.to_numpy()] = g.load_adj.to_numpy(); ntr[g.pos.to_numpy()] = g.n_tickets.to_numpy()
             lvl[g.pos.to_numpy()] = g.level.to_numpy(); conf[g.pos.to_numpy()] = g.confidence.to_numpy()
             self.crowd[k] = (load, ntr, lvl, conf)
+        del cs; gc.collect()
         self.route_level = pd.read_parquet(P / "crowd_route_level.parquet").set_index(["route_n", "dir", "daytype", "band"])[["load_adj", "level", "confidence", "n_tickets"]].to_dict("index")
         self.attrs = pd.read_parquet(P / "route_attrs.parquet").set_index("route_n").is_ac.to_dict()
 

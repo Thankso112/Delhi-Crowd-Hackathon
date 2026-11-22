@@ -1,6 +1,7 @@
 """TransitEngine: the data layer behind the CrowdWise-compatible HTTP API (see docs/API.md).
 Built on planner.engine.Planner (GTFS graph + crowd table); adds stop search with aliases, timed journey options,
 per-stretch segments, departure shifts, route catalogue and operator hotspots, all in the contract's JSON shape."""
+import gc, ctypes
 import json, math
 from collections import Counter
 from pathlib import Path
@@ -24,13 +25,18 @@ class TransitEngine(Planner):
     def __init__(self):
         super().__init__()
         P = config.PROC
-        cs = pd.read_parquet(P / "crowd_segments.parquet")
-        self.cells = cs
-        self.cx = {}                                                     # (route_n, dir, daytype, band) -> (prediction_source[], n_tickets[])
+        cs = pd.read_parquet(P / "crowd_segments.parquet", columns=["route_n", "dir", "daytype", "band", "pos", "load_raw", "n_tickets", "level",
+                                                                  "confidence", "is_ac", "trips_per_day", "prediction_source"])
+        cs["prediction_source"] = cs["prediction_source"].astype("category")
+        self.cx = {}                                                     # (route_n, dir, daytype, band) -> prediction_source[]
         for k, g in cs.groupby(["route_n", "dir", "daytype", "band"]):
             n = int(g.pos.max()) + 2
             src = np.array([None] * n, dtype=object); src[g.pos.to_numpy()] = g.prediction_source.to_numpy()
             self.cx[k] = src
+        cs["load_raw"] = cs["load_raw"].astype("float32")
+        for c in ("route_n", "daytype", "band", "level"):
+            cs[c] = cs[c].astype("category")
+        self.cells = cs
         self.by_rn = {(p["route_n"], p["dir"]): k for k, p in self.patterns.items()}
         self.by_id = {p["route_id"]: k for k, p in self.patterns.items()}
         self.ml = json.loads((P / "ml_insights.json").read_text())
@@ -38,6 +44,9 @@ class TransitEngine(Planner):
         self.mlMetrics = self.ml
         self._build_stop_index()
         self._build_route_index()
+        gc.collect()
+        try : ctypes.CDLL("libc.so.6").malloc_trim(0)
+        except Exception: pass
 
     # ------------------------------------------------------------------ stops
     def _build_stop_index(self):
