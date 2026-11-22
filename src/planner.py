@@ -132,7 +132,7 @@ class Planner:
         tiers = [l["_tier"] for l in out]; ratios = [l["max_load_ratio"] for l in out if l["max_load_ratio"] is not None]
         avg = [l["avg_load_ratio"] for l in out if l["avg_load_ratio"] is not None]
         worst = max(tiers) if tiers else -1
-        penalty = sum(PENALTY[max(0, l["_tier"])] * (0.5 if l["confidence"] == "low" else 1.0) for l in out)
+        penalty = sum(PENALTY[l["_tier"] if l["_tier"] >= 0 else 1] * (0.5 if l["confidence"] == "low" else 1.0) for l in out)
         src_rank = {"route_average": 0, "ml_fallback": 1, "observed_tickets": 2}
         opt = dict(total_duration_min=round(end - depart_min), in_vehicle_min=round(sum(l["ride_min"] for l in out)), wait_min=round(sum(l["wait_min"] for l in out)),
                    walk_min=round(self._walk_min(wd) + self._walk_min(tw) + self._walk_min(dd)), transfers=len(out) - 1,

@@ -271,14 +271,15 @@ class CrowdStore:
         cache = self.__dict__.setdefault("_net_cache", {})
         if daytype not in cache:
             ct = self.ct
-            c = ct.loc[(ct.daytype == daytype) & ct.load_ratio.notna(), ["hour", "load_ratio", "n_sched", "crowd_level"]]
+            c = ct.loc[(ct.daytype == daytype) & ct.load_ratio.notna(), ["hour", "load_ratio", "n_sched", "crowd_level", "route_n", "ticket_count"]]
             c = c.assign(rw=c.load_ratio * c.n_sched, over=(c.crowd_level == "crowded"))
             g = c.groupby("hour").agg(rw=("rw", "sum"), w=("n_sched", "sum"), over=("over", "sum"), cells=("load_ratio", "size"))
+            over_routes = c[(c.crowd_level == "crowded") & (c.ticket_count >= config.CONF_MED)].groupby("hour").route_n.nunique()
             out = []
             for h in range(5, 24):
                 if h in g.index and g.at[h, "w"] > 0:
                     avg = float(g.at[h, "rw"] / g.at[h, "w"])
-                    out.append(dict(hour=h, avg_load_ratio=round(avg, 3), avg_load_pct=min(100, round(avg * 100)), overloaded_count=int(g.at[h, "over"]),
+                    out.append(dict(hour=h, avg_load_ratio=round(avg, 3), avg_load_pct=min(100, round(avg * 100)), overloaded_count=int(over_routes.get(h, 0)),
                                     cells=int(g.at[h, "cells"]),
                                     crowding="seats" if avg <= 0.55 else ("standing" if avg <= config.STANDING_FRACTION_OF_CRUSH else "crowded")))
                 else:
