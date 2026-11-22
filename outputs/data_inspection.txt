@@ -1,0 +1,146 @@
+====================================================================== 
+TICKETS: /home/claude/delhi-bus-crowd/data/raw/tickets.csv (290.0 MB)
+total rows: 2,559,899
+
+columns: ['passenger_count', 'amount', 'vehicle_number', 'ticket_type_id', 'end_stop_name', 'route', 'start_stop_name', 'created_at', 'is_ac']
+
+first 8 rows:
+   passenger_count amount vehicle_number ticket_type_id          end_stop_name    route       start_stop_name                        created_at  is_ac
+0               1     22            NaN              1  Mahamaya Flyover West      8UP           Ali Village  2026-10-28 10:19:18.780611+05:30   True
+1               1      9      DL1PD6826              1            Crown Plaza   8ADOWN      Kalindi Kunj Bdr  2026-10-28 10:19:29.989461+05:30   True
+2               1   13.5     DL51EV9760              1             Clal Chowk    433UP          Andrews Ganj  2026-10-28 10:19:46.297108+05:30   True
+3               1   13.5            NaN              1            Ice Factory  208DOWN      West Patel Nagar  2026-10-28 10:19:47.853905+05:30   True
+4               1      9     DL51EV9810              1             Mallu Farm    516UP  Chhatarpur Extension  2026-10-28 10:19:48.525393+05:30   True
+5               1   13.5      DL1PD8487              1          Satya Niketan  448DOWN       Munirka Village  2026-10-28 10:20:00.609261+05:30   True
+6               1      9      DL1PD4411              1     Pitampura Nd Block    114UP             Gtb Nagar   2026-10-28 10:20:42.89825+05:30  False
+7               1   22.5            NaN              1       Kapashera Border   717AUP              Lal Kuan  2026-10-28 10:28:03.074801+05:30   True
+
+null counts (sample):
+ passenger_count         0
+amount                  0
+vehicle_number     150707
+ticket_type_id          0
+end_stop_name           0
+route                   0
+start_stop_name         0
+created_at              0
+is_ac                   0
+
+unique values (sample):
+ passenger_count         3
+amount                 39
+vehicle_number       6550
+ticket_type_id          1
+end_stop_name        5618
+route                1977
+start_stop_name      5966
+created_at         300000
+is_ac                   2
+
+top values of passenger_count:
+ passenger_count
+1    279722
+2     16991
+3      3287
+
+top values of ticket_type_id:
+ ticket_type_id
+1    300000
+
+top values of route:
+ route
+717AUP      3431
+717ADOWN    3139
+729DOWN     2373
+729UP       2249
+511AUP      2016
+717BDOWN    1909
+578UP       1814
+578DOWN     1795
+511ADOWN    1772
+623UP       1770
+85UP        1702
+544DOWN     1676
+522UP       1635
+534DOWN     1619
+717BUP      1611
+
+top values of is_ac:
+ is_ac
+True     232642
+False     67358
+
+timestamp column 'created_at' examples: ['2026-10-03 12:55:33.185008+05:30', '2026-10-01 22:12:51.371298+05:30', '2026-10-01 17:15:47.160491+05:30', '2026-10-03 17:51:26.666951+05:30', '2026-10-01 21:26:10.24106+05:30']
+parse success (first 19 chars): 100.0% | range: 2026-10-01 00:00:01 to 2026-10-30 08:42:04 | has offset suffix: True
+
+sample values of end_stop_name: ['Rang Puri Pahari', 'Pushpa Bhawan', 'Nehru Place / Paras Cinema', 'Noida Sec-18 Metro Station', 'Subhash Nagar Crossing / Mukherji Park', 'Chand Cinema', 'Bhajanpura', 'Badarpur Border (T)']
+
+sample values of start_stop_name: ['Kapashera Village', 'Kalawati Hospital', 'Pushp Vihar', 'Noida Sector-28/29', 'Jal Vihar Terminal', 'Laxmi Nagar X-Ing /Shakarpur Crossing', 'Pitam Pura Bv Block', 'E.S.I. Hospital']
+
+numeric summary of passenger_count:
+ count    300000.000000
+mean          1.078550
+std           0.307073
+min           1.000000
+25%           1.000000
+50%           1.000000
+75%           1.000000
+max           3.000000
+
+numeric summary of amount:
+ count    300000.000000
+mean         13.395858
+std           6.717066
+min           0.000000
+25%           9.000000
+50%          13.500000
+75%          18.000000
+max         133.500000
+
+====================================================================== 
+GTFS folder: /home/claude/delhi-bus-crowd/data/raw/gtfs
+files: ['agency.txt', 'calendar.txt', 'feed_info.txt', 'routes.txt', 'shapes.txt', 'stop_times.txt', 'stops.txt', 'trips.txt']
+
+stops.txt (0.4 MB) columns: ['stop_id', 'stop_code', 'stop_name', 'stop_lat', 'stop_lon']
+  stop_id stop_code               stop_name           stop_lat           stop_lon
+0       1  9CE15308  Rohini Sec 22 Terminal  28.71797103184126  77.06389993096785
+1       2  49FEABBE         Lakhhi Ram Park  28.71353301246467  77.06030224263961
+2    4470  211FB561              Aman Vihar  28.71131299254109  77.06322815655092
+
+routes.txt (0.2 MB) columns: ['agency_id', 'route_id', 'route_long_name', 'route_short_name', 'route_desc', 'route_type']
+  agency_id route_id route_long_name route_short_name                                               route_desc route_type
+0     DIMTS        1        102ADOWN         102ADOWN               Rohini Sec 22 Terminal to Azadpur Terminal          3
+1     DIMTS        4          102AUP           102AUP               Azadpur Terminal to Rohini Sec 22 Terminal          3
+2     DIMTS        5         102DOWN          102DOWN  Rohini Sec 22 Terminal to Old Delhi Railway Station (T)          3
+
+trips.txt (5.2 MB) columns: ['route_id', 'service_id', 'trip_id', 'trip_headsign', 'trip_short_name', 'direction_id', 'block_id', 'shape_id', 'wheelchair_accessible', 'bikes_allowed']
+  route_id service_id          trip_id                    trip_headsign trip_short_name direction_id block_id    shape_id wheelchair_accessible bikes_allowed
+0     1000          1  1000_FULL_06_10  Kashmere Gate City Bus Terminal             NaN          NaN      NaN  shp_3_1561                     0             0
+1     1000          1  1000_FULL_07_50  Kashmere Gate City Bus Terminal             NaN          NaN      NaN  shp_3_1561                     0             0
+2     1000          1  1000_FULL_15_10  Kashmere Gate City Bus Terminal             NaN          NaN      NaN  shp_3_1561                     0             0
+
+stop_times.txt (121.7 MB) columns: ['trip_id', 'arrival_time', 'departure_time', 'stop_id', 'stop_sequence', 'fare_stage', 'stop_dist']
+        trip_id arrival_time departure_time stop_id stop_sequence fare_stage stop_dist
+0  1_FULL_06_05     06:05:00       06:05:00       1             0          0       NaN
+1  1_FULL_06_05     06:07:00       06:07:00       2             1          0       NaN
+2  1_FULL_06_05     06:08:16       06:08:16    4470             2          0       NaN
+
+calendar.txt (0.0 MB) columns: ['service_id', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday', 'start_date', 'end_date']
+  service_id monday tuesday wednesday thursday friday saturday sunday start_date  end_date
+0          1      1       1         1        1      1        1      1   20250101  20400101
+
+calendar_dates.txt: MISSING
+
+frequencies.txt: MISSING
+
+shapes.txt (42.0 MB) columns: ['shape_id', 'shape_pt_lat', 'shape_pt_lon', 'shape_pt_sequence', 'shape_dist_traveled']
+  shape_id shape_pt_lat shape_pt_lon shape_pt_sequence shape_dist_traveled
+0  shp_3_1    28.736855    77.105476                 1                 0.0
+1  shp_3_1     28.73525    77.107742                 2             284.323
+2  shp_3_1    28.737896      77.1101                 3             657.995
+
+ROUTE MATCH: 98.2% of ticket rows have a route found in routes.txt (route_short_name)
+ticket routes NOT in GTFS (top 15): {'567BSTLDOWN': 377, '567BSTLUP': 322, '522BDOWN2': 272, '729BDOWN': 261, '628STLDOWN': 250, 'ML96UP': 221, 'ML96DOWN': 217, '729BUP': 182, '628STLUP': 150, '794AUP2': 139, '588LSTLDOWN': 130, '523AUP': 115, '861UP': 108, '628LSTLDOWN': 104, '972EXTDOWN': 98}
+STOP NAME exact match for end_stop_name: 74.8% (before fuzzy matching)
+STOP NAME exact match for start_stop_name: 73.9% (before fuzzy matching)
+direction_id present in trips.txt: True

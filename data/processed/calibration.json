@@ -1,0 +1,6 @@
+{
+  "coverage_factor": 24.745,
+  "method": "90% percentile of weekday-peak stretch load (1.97 ticketed pax per trip) set to the standing limit of 49 passengers",
+  "anchor_percentile_load": 1.97,
+  "n_reference_cells": 73154
+}

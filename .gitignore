@@ -1,0 +1,11 @@
+data/raw/*
+!data/raw/.gitkeep
+data/processed/tickets.parquet
+data/processed/tickets_resolved.parquet
+data/synthetic/
+data/sample_bundle.zip
+__pycache__/
+*.pyc
+.venv/
+.ipynb_checkpoints/outputs/synthetic/
+outputs/synthetic/

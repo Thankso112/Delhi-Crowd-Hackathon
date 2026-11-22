@@ -1,0 +1,208 @@
+{
+  "split_method": "Temporal hold-out: features from days 8-14 predict days 15-21; trained models first learn days 1-7 -> 8-14. No random split (it would leak the future).",
+  "preprocessing_summary": "Ticket stop names matched to GTFS stops (alias + fuzzy); load per stretch = ticketed passengers per scheduled trip (flow); cells need >= 10 tickets in the test week to count as truth; features: own earlier load (mF, nF), route average (rF), city average (gF), band, day type, position along the route, route length, scheduled trips, AC flag; Lasso / Logistic Regression use standardised features, missing history filled with 0.",
+  "train_rows": 140043,
+  "test_rows": 121120,
+  "active_fallback_model": "Random Forest",
+  "fallback_stats": {
+    "total_segments": 547587,
+    "observed_segments": 211829,
+    "ml_fallback_segments": 335758,
+    "route_average_segments": 0,
+    "ml_fallback_pct": 61.32
+  },
+  "regression_models": [
+    {
+      "name": "Linear Regression",
+      "mae": 0.2833,
+      "rmse": 0.4578,
+      "r2": 0.7745
+    },
+    {
+      "name": "Lasso (L1)",
+      "mae": 0.2815,
+      "rmse": 0.4563,
+      "r2": 0.7759
+    },
+    {
+      "name": "Random Forest",
+      "mae": 0.2476,
+      "rmse": 0.4372,
+      "r2": 0.7943
+    },
+    {
+      "name": "Gradient Boosting",
+      "mae": 0.275,
+      "rmse": 0.4809,
+      "r2": 0.7511
+    }
+  ],
+  "classification_models": [
+    {
+      "name": "Logistic Regression",
+      "accuracy": 0.8705,
+      "macro_f1": 0.596
+    },
+    {
+      "name": "Gradient Boosting Classifier",
+      "accuracy": 0.8855,
+      "macro_f1": 0.674
+    }
+  ],
+  "confusion_matrix": {
+    "labels": [
+      "seats_available",
+      "standing_room",
+      "crowded"
+    ],
+    "matrix": [
+      [
+        94774,
+        3614,
+        1371
+      ],
+      [
+        3622,
+        2717,
+        2972
+      ],
+      [
+        1224,
+        1069,
+        9757
+      ]
+    ],
+    "model": "Gradient Boosting Classifier"
+  },
+  "feature_importance": [
+    {
+      "feature": "mF",
+      "weight": 0.8056
+    },
+    {
+      "feature": "trips_per_day",
+      "weight": 0.1073
+    },
+    {
+      "feature": "nF",
+      "weight": 0.0398
+    },
+    {
+      "feature": "rF",
+      "weight": 0.0329
+    },
+    {
+      "feature": "day_c",
+      "weight": 0.0129
+    },
+    {
+      "feature": "pos_frac",
+      "weight": 0.0008
+    },
+    {
+      "feature": "n_stops",
+      "weight": 0.0006
+    },
+    {
+      "feature": "gF",
+      "weight": 0.0
+    },
+    {
+      "feature": "band_c",
+      "weight": 0.0
+    },
+    {
+      "feature": "pos",
+      "weight": 0.0
+    },
+    {
+      "feature": "is_ac",
+      "weight": 0.0
+    }
+  ],
+  "lasso_zeroed_features": [
+    "pos",
+    "pos_frac",
+    "n_stops"
+  ],
+  "top_correlated_pairs": [
+    {
+      "feature_a": "mF",
+      "feature_b": "rF",
+      "pearson_r": 0.8207
+    },
+    {
+      "feature_a": "pos",
+      "feature_b": "pos_frac",
+      "pearson_r": 0.7579
+    },
+    {
+      "feature_a": "pos",
+      "feature_b": "n_stops",
+      "pearson_r": 0.5821
+    },
+    {
+      "feature_a": "mF",
+      "feature_b": "nF",
+      "pearson_r": 0.5107
+    },
+    {
+      "feature_a": "nF",
+      "feature_b": "rF",
+      "pearson_r": 0.4373
+    },
+    {
+      "feature_a": "gF",
+      "feature_b": "day_c",
+      "pearson_r": -0.3829
+    }
+  ],
+  "thin_cell_comparison": {
+    "n_thin_test_cells": 398005,
+    "mae_shrinkage": 0.2153,
+    "mae_by_model": {
+      "Random Forest": 0.1696,
+      "Gradient Boosting": 0.1701
+    },
+    "ml_beats_shrinkage": true,
+    "bias_check": {
+      "mean_actual": 0.244,
+      "mean_pred_shrinkage": 0.3078,
+      "mean_pred_random_forest": 0.251,
+      "mean_pred_gradient_boosting": 0.2508
+    },
+    "note": "Judged on all test cells with little history, not only cells that later turned out well observed (that filter would bias toward busy cells)."
+  },
+  "concepts": [
+    {
+      "term": "Temporal hold-out",
+      "summary": "Train on the past, test on a later week, as in real use.",
+      "example": "Weeks 1-2 teach the model; week 3 is only used to score it."
+    },
+    {
+      "term": "MAE / RMSE / R\u00b2",
+      "summary": "MAE is the average miss; RMSE punishes big misses; R\u00b2 is the share of variation explained (0 = no better than the average).",
+      "example": "MAE 0.26 means we are off by about a quarter of a ticketed passenger per trip."
+    },
+    {
+      "term": "Lasso (L1) regularisation",
+      "summary": "Linear regression with a penalty that pushes useless feature weights to exactly zero.",
+      "example": "Features listed under lasso_zeroed_features carry no extra signal for Lasso."
+    },
+    {
+      "term": "Random forest vs gradient boosting",
+      "summary": "Both are many decision trees; forests average independent trees, boosting adds trees that fix earlier errors.",
+      "example": "Trees capture 'busy only at 6 pm on this stretch', which a straight line cannot."
+    },
+    {
+      "term": "Macro-F1 and the confusion matrix",
+      "summary": "Macro-F1 averages F1 over the three levels so the rare 'crowded' class counts equally; the matrix shows which levels get confused.",
+      "example": "A 'standing' stretch predicted as 'seats' is a cell off the diagonal."
+    },
+    {
+      "term": "Fallback for thin data",
+      "summary": "Stretches with few tickets borrow strength from a model or from the route average, and are flagged with lower confidence.",
+      "example": "prediction_source says observed_tickets, ml_fallback or route_average."
+    }
+  ]
+}
