@@ -141,6 +141,12 @@ class Planner:
                    confidence=min((l["confidence"] for l in out), key=CONF_RANK.get), prediction_source=min((l["prediction_source"] for l in out), key=src_rank.get),
                    ticket_count=int(sum(l["ticket_count"] for l in out)), legs=out, walk_to_first_m=round(wd), walk_from_last_m=round(dd), transfer_walk_m=round(tw),
                    _penalty=penalty, _rank_time=end - depart_min + config.TRANSFER_PENALTY_MIN * (len(out) - 1))
+        unk = [l for l in out if l["max_load_ratio"] is None]
+        ride_all = sum(l["ride_min"] for l in out) or 1.0
+        share = sum(l["ride_min"] for l in unk) / ride_all
+        opt.update(partial_data=bool(unk), unknown_leg_count=len(unk), unknown_ride_share=round(share, 2))
+        if share >= 0.5:
+            opt["max_crowd_level"] = "unknown"; opt["max_load_ratio"] = None; opt["avg_load_ratio"] = None; avg = []
         if avg:                                                                   # tier of the AVERAGE load (typical experience on the trip)
             cap = np.mean([1.0]); a = float(np.mean(avg))
             opt["avg_crowd_level"] = TIER_ORDER[0] if a <= 0.55 else TIER_ORDER[1] if a <= config.STANDING_FRACTION_OF_CRUSH else TIER_ORDER[2]
@@ -177,6 +183,8 @@ class Planner:
 
     def _shifts(self, cand, base, depart_min, daytype):
         out = []
+        if base["max_crowd_level"] == "unknown":
+            return []
         base_t = TIER_ORDER.index(base["max_crowd_level"]) if base["max_crowd_level"] in TIER_ORDER else 0
         for sh in (15, 30):
             e = self.evaluate(cand, depart_min + sh, daytype)

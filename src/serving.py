@@ -215,10 +215,19 @@ class CrowdStore:
                              load_ratio=round(float(a["load_ratio"][p]), 3) if ok else None, crowd_level=TIER_ORDER[a["tier"][p]] if ok else "unknown",
                              scheduled_buses_hr=int(a["n_sched"][p]) if ok else 0, ticket_count=int(a["tix"][p]),
                              confidence=str(confidence_of(a["tix"][p])), prediction_source=SRC_CODES[a["src"][p]] if ok else "route_average",
-                             data_source="calibrated_estimate" if ok else "no_schedule_at_this_hour"))
+                             data_source="calibrated_estimate" if ok else "no_schedule_at_this_hour",
+                             from_name=s["name"][p], to_name=s["name"][p + 1], crowding=TIER_ORDER[a["tier"][p]] if ok else "unknown",
+                             load_pct=min(100, round(float(a["load_ratio"][p]) * 100)) if ok else None,
+                             estimated_passengers=round(float(a["est_load"][p])) if ok else None,
+                             coordinates=[[float(s["lat"][p]), float(s["lon"][p])], [float(s["lat"][p + 1]), float(s["lon"][p + 1])]]))
         valid = [x for x in segs if x["load_ratio"] is not None]
         peak = max(valid, key=lambda x: x["load_ratio"]) if valid else None
         return dict(route_id=str(r.route_id), route_short_name=r.route, direction_id=int(r.direction_id), is_ac=is_ac, day_type=daytype, hour=int(hour),
+                    direction=("Down" if str(r.route).upper().endswith("DOWN") else "Up" if str(r.route).upper().endswith("UP") else None),
+                    busiest_stretch=(peak["from_stop_name"] + " \u2013 " + peak["to_stop_name"]) if peak else None,
+                    avg_load_pct=min(100, round(sum(x["load_ratio"] for x in valid) / len(valid) * 100)) if valid else None,
+                    crowding=peak["crowd_level"] if peak else "unknown", confidence=peak["confidence"] if peak else "low",
+                    ticket_count=int(sum(x["ticket_count"] for x in segs)), prediction_source=peak["prediction_source"] if peak else "route_average",
                     description=r.route_desc, agency=r.agency_id,
                     summary=dict(max_crowd_level=peak["crowd_level"] if peak else "unknown", max_load_ratio=peak["load_ratio"] if peak else None,
                                  peak_estimated_load=peak["estimated_load"] if peak else None, seated_capacity=cap["seats"], capacity=cap["crush"],
@@ -233,7 +242,7 @@ class CrowdStore:
         if hour is not None:
             m &= ct.hour == int(hour)
         m &= ct.ticket_count >= {"low": 0, "medium": config.CONF_MED, "high": config.CONF_HIGH}.get(min_confidence, 0)
-        top = (ct[m].sort_values(["load_ratio", "est_load_raw"], ascending=False)
+        top = (ct[m].sort_values(["load_ratio", "ticket_count", "est_load_raw"], ascending=False)
                  .drop_duplicates("route_n").head(max(1, min(int(limit), 200))))          # one row per route-direction: its busiest stretch
         rows = []
         for k, c in enumerate(top.itertuples(), 1):
@@ -247,8 +256,35 @@ class CrowdStore:
                              to_lat=float(s["lat"][c.pos + 1]), to_lng=float(s["lon"][c.pos + 1]), estimated_load=round(float(c.est_load), 1),
                              seated_capacity=cap["seats"], capacity=int(c.capacity), load_ratio=round(float(c.load_ratio), 3), crowd_level=c.crowd_level,
                              scheduled_buses_hr=int(c.n_sched), suggested_extra_buses_hr=extra, ticket_count=int(c.ticket_count),
-                             confidence=str(confidence_of(c.ticket_count)), prediction_source=c.prediction_source))
-        return dict(day_type=daytype, hour=hour if hour is not None else "all", min_confidence=min_confidence, count=len(rows), hotspots=rows)
+                             confidence=str(confidence_of(c.ticket_count)), prediction_source=c.prediction_source,
+                             route_long_name=s["name"][0] + " to " + s["name"][-1], corridor=s["name"][0] + " \u2013 " + s["name"][-1],
+                             busiest_stretch=s["name"][c.pos] + " \u2013 " + s["name"][c.pos + 1],
+                             direction=("Down" if str(r.route).upper().endswith("DOWN") else "Up" if str(r.route).upper().endswith("UP") else None),
+                             load_pct=min(100, round(float(c.load_ratio) * 100)), estimated_passengers=int(round(float(c.est_load))), crowding=c.crowd_level,
+                             headway_minutes=round(60 / c.n_sched, 1) if c.n_sched > 0 else None))
+        return dict(day_type=daytype, hour=hour if hour is not None else "all", min_confidence=min_confidence, count=len(rows), hotspots=rows,
+                    hourly_network=self.hourly_network(daytype))
+
+    def hourly_network(self, daytype="weekday"):
+        """19 hourly points (05-23) for the operator chart: average load ratio over ALL cells of that hour, weighted by scheduled buses,
+        and the number of stretch-hours labelled crowded. Hours with no data get cells=0 (not a real zero load)."""
+        cache = self.__dict__.setdefault("_net_cache", {})
+        if daytype not in cache:
+            ct = self.ct
+            c = ct.loc[(ct.daytype == daytype) & ct.load_ratio.notna(), ["hour", "load_ratio", "n_sched", "crowd_level"]]
+            c = c.assign(rw=c.load_ratio * c.n_sched, over=(c.crowd_level == "crowded"))
+            g = c.groupby("hour").agg(rw=("rw", "sum"), w=("n_sched", "sum"), over=("over", "sum"), cells=("load_ratio", "size"))
+            out = []
+            for h in range(5, 24):
+                if h in g.index and g.at[h, "w"] > 0:
+                    avg = float(g.at[h, "rw"] / g.at[h, "w"])
+                    out.append(dict(hour=h, avg_load_ratio=round(avg, 3), avg_load_pct=min(100, round(avg * 100)), overloaded_count=int(g.at[h, "over"]),
+                                    cells=int(g.at[h, "cells"]),
+                                    crowding="seats" if avg <= 0.55 else ("standing" if avg <= config.STANDING_FRACTION_OF_CRUSH else "crowded")))
+                else:
+                    out.append(dict(hour=h, avg_load_ratio=None, avg_load_pct=0, overloaded_count=0, cells=0, crowding="seats"))
+            cache[daytype] = out
+        return cache[daytype]
 
     def network_profile(self, daytype="weekday"):
         """Average load ratio per hour (for the operator bar chart); only cells with medium/high confidence."""
