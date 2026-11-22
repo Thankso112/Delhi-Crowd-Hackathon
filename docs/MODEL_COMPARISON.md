@@ -20,6 +20,6 @@ Also tested on routes held out from training. Same features for every model.
 **Reading.**
 - The two model families are close: V2-style models lead slightly on regression, V4-style (SVM) slightly on classification. The gaps are small and no confidence intervals were computed.
 - At route-hour level the simple shrinkage estimate (own history blended with the route-hour average) beat every ML model. ML therefore is not the primary estimate.
-- This is why the production estimate is the shrinkage model, with ML used only as a fallback for stretches with very little ticket history
-  (see `docs/TECHNICAL_NOTE.md`, section 6, for the stretch-level test and its caveats).
+- This is why the production estimate is the shrinkage model everywhere, including stretches with very little ticket history; the ML fallback is disabled
+  (see `docs/TECHNICAL_NOTE.md`, section 6).
 - Limits of this comparison: route-hour level only (no stop-to-stop stretches, no GTFS features), and it tests the modelling recipes, not the saved model files.

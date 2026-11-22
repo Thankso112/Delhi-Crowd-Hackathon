@@ -93,6 +93,11 @@ def routes(q: str = "", limit: int = 100, offset: int = 0):
     return STATE["store"].list_routes(q, limit, offset)
 
 
+@app.get("/api/routes/summary")        
+def routes_summary(day_type: str = "", daytype: str = "", hour: int = 9):
+    return STATE["store"].routes_summary(_day(day_type or daytype), _int(hour, 9, 0, 23))
+
+
 @app.get("/api/routes/{route_id}/crowd")
 def route_crowd(route_id: str, day_type: str = "", daytype: str = "", hour: int = 18, direction_id: int = None):
     s = STATE["store"]
@@ -104,9 +109,9 @@ def route_crowd(route_id: str, day_type: str = "", daytype: str = "", hour: int 
 
 @app.get("/api/operator/hotspots")
 @app.get("/api/operator")
-def hotspots(day_type: str = "", daytype: str = "", hour: str = "9", limit: int = 20, min_confidence: str = "low"):
+def hotspots(day_type: str = "", daytype: str = "", hour: str = "9", limit: int = 20, min_confidence: str = "medium"):
     h = None if str(hour).lower() == "all" else _int(hour, 9, 0, 23)
-    return STATE["store"].hotspots(_day(day_type or daytype), h, limit, min_confidence if min_confidence in ("low", "medium", "high") else "low")
+    return STATE["store"].hotspots(_day(day_type or daytype), h, limit, min_confidence if min_confidence in ("low", "medium", "high") else "medium")
 
 
 @app.get("/api/operator/network-profile")

@@ -116,6 +116,10 @@ baselines = [score("BASELINE route x hour average (weeks 1-2)", te.routehour_A_i
 best = min(reg_rows, key=lambda r: r["mae_sparse"] if r["mae_sparse"] is not None else 9)["name"]
 base_best_sparse = min(b["mae_sparse"] for b in baselines)
 enabled = bool(next(r for r in reg_rows if r["name"] == best)["mae_sparse"] < base_best_sparse)
+# DISABLED ON PURPOSE. The fallback trained on busy cells (10+ tickets) and, applied to the 65% of cells with <10 tickets,
+# raised their median load from ~3.6 to ~78 people and labelled 57% of all stretch-hours "crowded". compare_report.md shows the
+# shrinkage estimate beats every ML model on the unseen period, so sparse cells keep the shrinkage estimate (see fix_served_table.py).
+enabled = False
 log(f"best model on sparse test cells: {best} | beats the best baseline: {enabled}")
 
 # ----------------------------------------------------------------------------- 4. classification into tiers

@@ -22,6 +22,13 @@ export interface PlanOption {
   confidence: Confidence; prediction_source: PredictionSource; ticket_count: number; legs: PlanLeg[];
 }
 export interface DepartureShift { shift_minutes: number; departure_time: string; improves_crowding: boolean; previous_crowd_level: CrowdTier; new_crowd_level: CrowdTier; load_ratio_delta: number; summary: string }
+/** One row per route-direction from GET /api/routes/summary (busiest qualifying stretch; terminal hops ignored). 'unknown' rows have null load/stretch and confidence 'low'. */
+export interface RouteSummaryRow {
+  route_id: string; route_short_name: string; direction_id: number; direction: 'Up' | 'Down' | null; route_long_name: string;
+  busiest_stretch: string | null; load_ratio_raw: number | null; load_pct: number | null;   // load_pct is capped at 100, load_ratio_raw is not
+  crowd_level: CrowdTier; confidence: Confidence; prediction_source: PredictionSource; ticket_count: number; scheduled_buses_hr: number;
+}
+export interface RoutesSummaryResponse { day_type: DayType; hour: number; count: number; routes: RouteSummaryRow[] }
 export interface PlanResponse { query: Record<string, unknown>; resolved_origin: StopHit & { match_method: string }; resolved_destination: StopHit & { match_method: string }; options: PlanOption[]; departure_shifts: DepartureShift[]; note: string | null }
 
 const BASE = (import.meta as any).env?.VITE_API_BASE_URL ?? '';
@@ -51,7 +58,8 @@ export const api = {
     fetchJson<PlanResponse>('/api/plan', { origin, destination, time, day_type, preference }),
   routes: (q = '', limit = 100, offset = 0) => fetchJson<any>('/api/routes', { q, limit, offset }),
   routeCrowd: (routeId: string, day_type: DayType, hour: number) => fetchJson<any>(`/api/routes/${encodeURIComponent(routeId)}/crowd`, { day_type, hour }),
-  hotspots: (day_type: DayType, hour: number | 'all', limit = 20, min_confidence: Confidence = 'low') => fetchJson<any>('/api/operator/hotspots', { day_type, hour, limit, min_confidence }),
+  hotspots: (day_type: DayType, hour: number | 'all', limit = 20, min_confidence: Confidence = 'medium') => fetchJson<any>('/api/operator/hotspots', { day_type, hour, limit, min_confidence }),
+  routesSummary: (day_type: DayType, hour: number) => fetchJson<RoutesSummaryResponse>('/api/routes/summary', { day_type, hour }),
   networkProfile: (day_type: DayType) => fetchJson<any>('/api/operator/network-profile', { day_type }),
   validation: () => fetchJson<any>('/api/validation/summary'),
   mlInsights: () => fetchJson<any>('/api/ml/insights'),

@@ -90,6 +90,9 @@ class CrowdStore:
             ct = db.read_table("crowd_table", db.get_engine())[[c for c in cols if c != "prediction_source"]]
         if "prediction_source" not in ct:
             ct["prediction_source"] = np.where(ct.ticket_count >= config.CONF_MED, "observed_tickets", "route_average")
+        if "est_load_raw" not in ct:
+            ct["est_load_raw"] = ct.est_load
+        ct["load_ratio_raw"] = ct.est_load_raw / ct.capacity            # UNCAPPED: used for ranking (load_ratio is capped at 1.5 for display)
         self.ct = ct
         self.ct_path = path.name if path.exists() else "database"
         # --- flat arrays: one slot per (route, daytype, hour, stretch)
@@ -102,9 +105,11 @@ class CrowdStore:
         rc = ct.route_n.map(self.rcode).to_numpy(np.int64)
         gid = (rc * 2 + (ct.daytype == "weekend").to_numpy(np.int64)) * 24 + ct.hour.to_numpy(np.int64)
         flat = self.off[gid] + ct.pos.to_numpy(np.int64)
-        self.A = {k: np.full(total, np.nan, np.float32) for k in ("load_ratio", "est_load", "n_sched")}
+        self.A = {k: np.full(total, np.nan, np.float32) for k in ("load_ratio", "load_ratio_raw", "est_load", "est_load_raw", "n_sched")}
         self.A["load_ratio"][flat] = ct.load_ratio.to_numpy(np.float32)
+        self.A["load_ratio_raw"][flat] = ct.load_ratio_raw.to_numpy(np.float32)
         self.A["est_load"][flat] = ct.est_load.to_numpy(np.float32)
+        self.A["est_load_raw"][flat] = ct.est_load_raw.to_numpy(np.float32)
         self.A["n_sched"][flat] = ct.n_sched.to_numpy(np.float32)
         self.A["tix"] = np.zeros(total, np.int32); self.A["tix"][flat] = ct.ticket_count.to_numpy(np.int32)
         self.A["tier"] = np.full(total, -1, np.int8); self.A["tier"][flat] = ct.crowd_level.map(TIER_RANK).to_numpy(np.int8)
@@ -201,6 +206,20 @@ class CrowdStore:
             c = m or c
         return c[0]
 
+    def _busiest(self, a, n):
+        """Index of the busiest stretch by UNCAPPED load. Ignores the first/last 2 stretches (terminal hops) and stretches below CONF_MED tickets;
+        falls back to every stretch with data only if nothing qualifies. Returns None if the route has no data at this hour."""
+        raw = a["load_ratio_raw"]
+        valid = ~np.isnan(raw)
+        if not valid.any():
+            return None
+        pos = np.arange(n)
+        ok = valid & (pos >= 2) & (pos < n - 2) & (a["tix"] >= config.CONF_MED)
+        pick = ok if ok.any() else valid
+        # highest raw load; ties -> more tickets
+        order = np.lexsort((a["tix"][pick], raw[pick]))
+        return int(pos[pick][order[-1]])
+
     def route_crowd(self, rn, daytype="weekday", hour=18):
         s, r = self.stops_of[rn], self.routes.loc[rn]
         n = len(s["stop_id"]) - 1
@@ -212,7 +231,9 @@ class CrowdStore:
             segs.append(dict(sequence=p, from_stop_id=s["stop_id"][p], to_stop_id=s["stop_id"][p + 1], from_stop_name=s["name"][p], to_stop_name=s["name"][p + 1],
                              from_lat=float(s["lat"][p]), from_lng=float(s["lon"][p]), to_lat=float(s["lat"][p + 1]), to_lng=float(s["lon"][p + 1]),
                              estimated_load=round(float(a["est_load"][p]), 1) if ok else None, seated_capacity=cap["seats"], capacity=cap["crush"],
-                             load_ratio=round(float(a["load_ratio"][p]), 3) if ok else None, crowd_level=TIER_ORDER[a["tier"][p]] if ok else "unknown",
+                             load_ratio=round(float(a["load_ratio"][p]), 3) if ok else None,
+                             load_ratio_raw=round(float(a["load_ratio_raw"][p]), 3) if ok else None, estimated_load_raw=round(float(a["est_load_raw"][p]), 1) if ok else None,
+                             crowd_level=TIER_ORDER[a["tier"][p]] if ok else "unknown",
                              scheduled_buses_hr=int(a["n_sched"][p]) if ok else 0, ticket_count=int(a["tix"][p]),
                              confidence=str(confidence_of(a["tix"][p])), prediction_source=SRC_CODES[a["src"][p]] if ok else "route_average",
                              data_source="calibrated_estimate" if ok else "no_schedule_at_this_hour",
@@ -221,7 +242,8 @@ class CrowdStore:
                              estimated_passengers=round(float(a["est_load"][p])) if ok else None,
                              coordinates=[[float(s["lat"][p]), float(s["lon"][p])], [float(s["lat"][p + 1]), float(s["lon"][p + 1])]]))
         valid = [x for x in segs if x["load_ratio"] is not None]
-        peak = max(valid, key=lambda x: x["load_ratio"]) if valid else None
+        bi = self._busiest(a, n)
+        peak = segs[bi] if bi is not None else None
         return dict(route_id=str(r.route_id), route_short_name=r.route, direction_id=int(r.direction_id), is_ac=is_ac, day_type=daytype, hour=int(hour),
                     direction=("Down" if str(r.route).upper().endswith("DOWN") else "Up" if str(r.route).upper().endswith("UP") else None),
                     busiest_stretch=(peak["from_stop_name"] + " \u2013 " + peak["to_stop_name"]) if peak else None,
@@ -235,26 +257,55 @@ class CrowdStore:
                     stops=[dict(sequence=i, stop_id=s["stop_id"][i], stop_name=s["name"][i], lat=float(s["lat"][i]), lng=float(s["lon"][i])) for i in range(n + 1)],
                     polyline=[[float(s["lat"][i]), float(s["lon"][i])] for i in range(n + 1)], segments=segs)
 
+    def routes_summary(self, daytype="weekday", hour=9):
+        """One row per route-direction at (day type, hour): its busiest qualifying stretch. Cached per (day type, hour)."""
+        cache = self.__dict__.setdefault("_sum_cache", {})
+        key = (daytype, int(hour))
+        if key not in cache:
+            rows = []
+            for rn, r in self.routes.iterrows():
+                s = self.stops_of[rn]; n = len(s["stop_id"]) - 1
+                a = self.seg_arrays(rn, daytype, np.full(n, hour), np.arange(n)) if n > 0 else None
+                bi = self._busiest(a, n) if a is not None else None
+                base = dict(route_id=str(r.route_id), route_short_name=r.route, direction_id=int(r.direction_id),
+                            direction=("Down" if str(r.route).upper().endswith("DOWN") else "Up" if str(r.route).upper().endswith("UP") else None),
+                            route_long_name=s["name"][0] + " to " + s["name"][-1])
+                sched = int(a["n_sched"][bi]) if bi is not None else int(self.trips_hr.get((rn, int(hour)), 0))      # buses/hr on the busiest stretch (same meaning as in hotspots)
+                base["scheduled_buses_hr"] = sched
+                if bi is None:
+                    rows.append(dict(base, busiest_stretch=None, load_ratio_raw=None, load_pct=None, crowd_level="unknown", confidence="low",
+                                     prediction_source="route_average", ticket_count=0))
+                    continue
+                lr = float(a["load_ratio"][bi])
+                rows.append(dict(base, busiest_stretch=s["name"][bi] + " \u2013 " + s["name"][bi + 1], load_ratio_raw=round(float(a["load_ratio_raw"][bi]), 3),
+                                 load_pct=min(100, round(lr * 100)), crowd_level=TIER_ORDER[a["tier"][bi]], confidence=str(confidence_of(a["tix"][bi])),
+                                 prediction_source=SRC_CODES[a["src"][bi]], ticket_count=int(a["tix"][bi])))
+            cache[key] = rows
+        rows = cache[key]
+        return dict(day_type=daytype, hour=int(hour), count=len(rows), routes=rows)
+
     # ------------------------------------------------------------------ operator view
-    def hotspots(self, daytype="weekday", hour=9, limit=20, min_confidence="low"):
+    def hotspots(self, daytype="weekday", hour=9, limit=20, min_confidence="medium"):
         ct = self.ct
         m = (ct.daytype == daytype)
         if hour is not None:
             m &= ct.hour == int(hour)
-        m &= ct.ticket_count >= {"low": 0, "medium": config.CONF_MED, "high": config.CONF_HIGH}.get(min_confidence, 0)
-        top = (ct[m].sort_values(["load_ratio", "ticket_count", "est_load_raw"], ascending=False)
+        m &= ct.ticket_count >= {"low": 0, "medium": config.CONF_MED, "high": config.CONF_HIGH}.get(min_confidence, config.CONF_MED)
+        top = (ct[m].sort_values(["load_ratio_raw", "ticket_count"], ascending=False)
                  .drop_duplicates("route_n").head(max(1, min(int(limit), 200))))          # one row per route-direction: its busiest stretch
         rows = []
         for k, c in enumerate(top.itertuples(), 1):
             s, r = self.stops_of[c.route_n], self.routes.loc[c.route_n]
             target = c.capacity * config.STANDING_FRACTION_OF_CRUSH
-            extra = int(max(1, math.ceil((c.est_load / target - 1) * c.n_sched))) if c.est_load > target else 0
+            extra = int(max(1, math.ceil((c.est_load_raw / target - 1) * c.n_sched))) if c.est_load_raw > target else 0
             cap = config.CAPACITY["ac" if self.attrs.is_ac.get(c.route_n, 0) else "nonac"]
             rows.append(dict(rank=k, route_id=str(r.route_id), route_short_name=r.route, direction_id=int(r.direction_id), hour=int(c.hour),
                              is_ac=bool(self.attrs.is_ac.get(c.route_n, 0)), from_stop_id=s["stop_id"][c.pos], from_stop_name=s["name"][c.pos],
                              to_stop_id=s["stop_id"][c.pos + 1], to_stop_name=s["name"][c.pos + 1], from_lat=float(s["lat"][c.pos]), from_lng=float(s["lon"][c.pos]),
                              to_lat=float(s["lat"][c.pos + 1]), to_lng=float(s["lon"][c.pos + 1]), estimated_load=round(float(c.est_load), 1),
-                             seated_capacity=cap["seats"], capacity=int(c.capacity), load_ratio=round(float(c.load_ratio), 3), crowd_level=c.crowd_level,
+                             seated_capacity=cap["seats"], capacity=int(c.capacity), load_ratio=round(float(c.load_ratio), 3),
+                             load_ratio_raw=round(float(c.load_ratio_raw), 3), load_pct_raw=int(round(float(c.load_ratio_raw) * 100)), estimated_load_raw=round(float(c.est_load_raw), 1),
+                             crowd_level=c.crowd_level,
                              scheduled_buses_hr=int(c.n_sched), suggested_extra_buses_hr=extra, ticket_count=int(c.ticket_count),
                              confidence=str(confidence_of(c.ticket_count)), prediction_source=c.prediction_source,
                              route_long_name=s["name"][0] + " to " + s["name"][-1], corridor=s["name"][0] + " \u2013 " + s["name"][-1],
@@ -266,15 +317,16 @@ class CrowdStore:
                     hourly_network=self.hourly_network(daytype))
 
     def hourly_network(self, daytype="weekday"):
-        """19 hourly points (05-23) for the operator chart: average load ratio over ALL cells of that hour, weighted by scheduled buses,
-        and the number of stretch-hours labelled crowded. Hours with no data get cells=0 (not a real zero load)."""
+        """19 hourly points (05-23) for the operator chart: average load ratio over cells with medium+ confidence (ticket_count >= CONF_MED), weighted by scheduled buses,
+        and overloaded_count = route-directions with a crowded stretch (medium+ confidence). Hours with no such cells get null values and cells=0 (not a real zero load)."""
         cache = self.__dict__.setdefault("_net_cache", {})
         if daytype not in cache:
             ct = self.ct
-            c = ct.loc[(ct.daytype == daytype) & ct.load_ratio.notna(), ["hour", "load_ratio", "n_sched", "crowd_level", "route_n", "ticket_count"]]
-            c = c.assign(rw=c.load_ratio * c.n_sched, over=(c.crowd_level == "crowded"))
-            g = c.groupby("hour").agg(rw=("rw", "sum"), w=("n_sched", "sum"), over=("over", "sum"), cells=("load_ratio", "size"))
-            over_routes = c[(c.crowd_level == "crowded") & (c.ticket_count >= config.CONF_MED)].groupby("hour").route_n.nunique()
+            c = ct.loc[(ct.daytype == daytype) & ct.load_ratio.notna() & (ct.ticket_count >= config.CONF_MED),
+                       ["hour", "load_ratio", "n_sched", "crowd_level", "route_n"]]                      # medium+ confidence cells only
+            c = c.assign(rw=c.load_ratio * c.n_sched)
+            g = c.groupby("hour").agg(rw=("rw", "sum"), w=("n_sched", "sum"), cells=("load_ratio", "size"))
+            over_routes = c[c.crowd_level == "crowded"].groupby("hour").route_n.nunique()            # route-directions with a crowded stretch
             out = []
             for h in range(5, 24):
                 if h in g.index and g.at[h, "w"] > 0:
@@ -283,7 +335,7 @@ class CrowdStore:
                                     cells=int(g.at[h, "cells"]),
                                     crowding="seats" if avg <= 0.55 else ("standing" if avg <= config.STANDING_FRACTION_OF_CRUSH else "crowded")))
                 else:
-                    out.append(dict(hour=h, avg_load_ratio=None, avg_load_pct=0, overloaded_count=0, cells=0, crowding="seats"))
+                    out.append(dict(hour=h, avg_load_ratio=None, avg_load_pct=None, overloaded_count=None, cells=0, crowding=None))
             cache[daytype] = out
         return cache[daytype]
 
@@ -291,7 +343,13 @@ class CrowdStore:
         """Average load ratio per hour (for the operator bar chart); only cells with medium/high confidence."""
         c = self.ct[(self.ct.daytype == daytype) & (self.ct.ticket_count >= config.CONF_MED)]
         g = c.groupby("hour").agg(avg_load_ratio=("load_ratio", "mean"), crowded_share=("crowd_level", lambda s: float((s == "crowded").mean())), cells=("load_ratio", "size"))
-        return dict(day_type=daytype, hours=[dict(hour=int(h), avg_load_ratio=round(float(r.avg_load_ratio), 3), crowded_share=round(r.crowded_share, 3), cells=int(r.cells)) for h, r in g.iterrows()])
+        hours = []
+        for h in range(24):
+            if h in g.index and g.at[h, "cells"] > 0:
+                hours.append(dict(hour=h, avg_load_ratio=round(float(g.at[h, "avg_load_ratio"]), 3), crowded_share=round(float(g.at[h, "crowded_share"]), 3), cells=int(g.at[h, "cells"])))
+            else:
+                hours.append(dict(hour=h, avg_load_ratio=None, crowded_share=None, cells=0))
+        return dict(day_type=daytype, hours=hours)
 
     # ------------------------------------------------------------------ meta
     def health(self):
@@ -300,7 +358,7 @@ class CrowdStore:
         return dict(status="ok", mode=config.MODE, ready=True,
                     counts=dict(routes=int(self.routes.base.nunique()), route_directions=int(len(self.routes)), stops=int(len(self.stops)), crowd_cells=int(len(self.ct))),
                     map_center=dict(lat=config.CITY_CENTRE[0], lng=config.CITY_CENTRE[1]),
-                    ml_fallback_model=(self.ml or {}).get("active_fallback_model", "none (ML module not run)"), crowd_table_file=self.ct_path, calibration=cal)
+                    ml_fallback_model="none (disabled: shrinkage estimate is served)" if not (self.ct.prediction_source == "ml_fallback").any() else (self.ml or {}).get("active_fallback_model", "unknown"), crowd_table_file=self.ct_path, calibration=cal)
 
     def validation_summary(self):
         if getattr(self, "_vs", None) is None:
@@ -325,11 +383,43 @@ class CrowdStore:
             sensitivity=m.get("sensitivity"), organizer_curve_check=m.get("organizer_curve_check"),
             tier_distribution={k: round(float(v), 3) for k, v in self.ct.crowd_level.value_counts(normalize=True).items()},
             confidence_distribution={k: round(float(v), 3) for k, v in pd.Series(confidence_of(self.ct.ticket_count)).value_counts(normalize=True).items()},
-            fallback_stats=ml.get("fallback_stats"), generated_from="real run outputs (outputs/*.json)" if m else "validation not run yet")
+            headline_accuracy=self._comparison_headline(),
+            what_is_validated=("Validation covers ticket VOLUME per cell (route x weekday/weekend x hour, tickets per day on a log scale) on unseen days and unseen routes. "
+                               "It does not validate head-counts. The crowd TIER also depends on assumed bus capacity and the scale factor "
+                               f"(base {config.SCALE['base']:.1f} = {config.PASS_MULTIPLIER['base']} pass-holder multiplier / {config.EKT_CAPTURE_RATE['base']} e-ticket capture rate), which are assumptions, not measured."),
+            fallback_stats=self._fallback_stats(), generated_from="real run outputs (outputs/*.json)" if m else "validation not run yet")
+
+    def _fallback_stats(self):
+        """Computed from the table actually served (the ML fallback is switched off, so ml_fallback_segments is 0)."""
+        src = self.ct.prediction_source.value_counts(); total = int(len(self.ct))
+        return dict(total_segments=total, observed_segments=int(src.get("observed_tickets", 0)), ml_fallback_segments=int(src.get("ml_fallback", 0)),
+                    ml_fallback_pct=round(float(src.get("ml_fallback", 0)) / total * 100, 2), route_average_segments=int(src.get("route_average", 0)),
+                    ml_fallback_enabled=bool(src.get("ml_fallback", 0) > 0), note="Sparse cells (<10 tickets) keep the shrinkage estimate; ML was tested and did not beat it.")
+
+    def _comparison_headline(self):
+        """Headline accuracy from outputs/model_comparison/compare_results.csv: cells with >= 10 test tickets, R2 on log1p(tickets/day)."""
+        f = config.OUT / "model_comparison" / "compare_results.csv"
+        if not f.exists():
+            return None
+        d = pd.read_csv(f); d = d[d.view.str.contains(">= 10")]
+        out = {}
+        for test, key in (("temporal", "unseen_days"), ("unseen routes", "unseen_routes")):
+            t = d[d.test == test]; clf = t.model.str.contains("classifier")
+            reg, base = t[~clf & ~t.model.str.startswith("BASE")], t[t.model.str.startswith("BASE")].set_index("model")
+            shr, own, glob = (base.loc[f"BASE | {n}"] for n in ("shrinkage (own + route-hour)", "own-history persistence", "global mean"))
+            best, bclf = reg.loc[reg.R2.idxmax()], t[clf].loc[t[clf].tier_macroF1.idxmax()]
+            r = lambda v: round(float(v), 3)
+            out[key] = dict(eval_cells="route x day type x hour with >= 10 test tickets", r2_shrinkage_model=r(shr.R2), r2_own_history_baseline=r(own.R2), r2_global_mean_baseline=r(glob.R2),
+                            best_ml_model=best.model, r2_best_ml=r(best.R2), tier_accuracy_shrinkage=r(shr.tier_acc), tier_macro_f1_shrinkage=r(shr.tier_macroF1),
+                            best_ml_classifier=bclf.model.replace("  [classifier]", ""), tier_accuracy_best_ml_classifier=r(bclf.tier_acc), tier_macro_f1_best_ml_classifier=r(bclf.tier_macroF1))
+        out["note"] = ("Shrinkage (own history blended with the route-hour average) beats every ML model on R2, so it is the served estimate. "
+                       "Tier accuracy / macro-F1 here are for ticket-volume tiers, not for crowd tiers. Source: outputs/model_comparison/compare_results.csv.")
+        return out
 
     def ml_insights(self):
         if self.ml:
-            return self.ml
+            return dict(self.ml, fallback_stats=self._fallback_stats(), ml_fallback_enabled=bool((self.ct.prediction_source == "ml_fallback").any()),
+                        active_fallback_model="none (disabled: shrinkage estimate is served)" if not (self.ct.prediction_source == "ml_fallback").any() else self.ml.get("active_fallback_model"))
         return dict(split_method="not available: run scripts/07_ml_models.py", preprocessing_summary="", train_rows=0, test_rows=0, active_fallback_model="none",
                     fallback_stats=dict(total_segments=int(len(self.ct)), observed_segments=int((self.ct.prediction_source == "observed_tickets").sum()), ml_fallback_segments=0, ml_fallback_pct=0.0),
                     regression_models=[], classification_models=[], confusion_matrix=dict(labels=[], matrix=[]), feature_importance=[], concepts=[])

@@ -17,7 +17,8 @@ Every number below is from the real run (long lists shortened with `...`).
 | `GET /api/plan?origin=&destination=&time=HH:MM&day_type=weekday\|weekend&preference=balanced\|fastest\|comfortable` | journey options with crowd per leg + departure shifts. `origin`/`destination` accept a stop name, a stop_id, or `lat,lon` (or use `olat,olon,dlat,dlon`) |
 | `GET /api/routes?q=&limit=100&offset=0` | route-directions |
 | `GET /api/routes/{route_id}/crowd?day_type=&hour=&direction_id=` | stops, polyline and per-stretch crowd (`route_id` can be the GTFS id, the short name like `425DOWN`, or the number `425`) |
-| `GET /api/operator/hotspots?day_type=&hour=&limit=20&min_confidence=low\|medium\|high` | most overloaded route-directions (one row each: its busiest stretch) |
+| `GET /api/operator/hotspots?day_type=&hour=&limit=20&min_confidence=medium\|low\|high` | most overloaded route-directions (one row each: its busiest stretch), ranked by UNCAPPED load (`load_ratio_raw`), then ticket count. Default `min_confidence=medium` |
+| `GET /api/routes/summary?day_type=&hour=` | one row per route-direction for the map: its busiest qualifying stretch (see below) |
 | `GET /api/operator/network-profile?day_type=` | average load ratio per hour (for the operator bar chart) |
 | `GET /api/validation/summary` | validation numbers from the real run |
 | `GET /api/ml/insights` | ML split, models, metrics, confusion matrix, concepts |
@@ -380,7 +381,26 @@ Every number below is from the real run (long lists shortened with `...`).
 }
 ```
 
+## GET /api/routes/summary?day_type=weekday&hour=9
+One row per route-direction (2,574 in the current data: `counts.route_directions` in `/api/health`). `busiest_stretch` is the stretch with the highest UNCAPPED load that is at least 3 stops from either end of the route (terminal hops ignored) and has `ticket_count >= 10`; if no stretch qualifies, all stretches with data are used. `load_pct` is capped at 100 for display, `load_ratio_raw` is not capped. Routes with no data at that hour get `crowd_level: "unknown"`, `confidence: "low"` and null load/stretch. `ticket_count`, `confidence`, `prediction_source` and `scheduled_buses_hr` describe the busiest stretch.
+```json
+{
+  "day_type": "weekday", "hour": 9, "count": 2574,
+  "routes": [
+    {"route_id": "1", "route_short_name": "102ADOWN", "direction_id": 1, "direction": "Down",
+     "route_long_name": "Rohini Sec 22 Terminal to Azadpur Terminal",
+     "busiest_stretch": "Rohini Sec 7 and sec 8,9 \u2013 Rohini Sec 7/8/9 Crossing",
+     "load_ratio_raw": 0.769, "load_pct": 77, "crowd_level": "crowded", "confidence": "medium",
+     "prediction_source": "observed_tickets", "ticket_count": 22, "scheduled_buses_hr": 1},
+    {"route_id": "...", "route_short_name": "...", "direction_id": 0, "direction": "Up", "route_long_name": "...",
+     "busiest_stretch": null, "load_ratio_raw": null, "load_pct": null, "crowd_level": "unknown", "confidence": "low",
+     "prediction_source": "route_average", "ticket_count": 0, "scheduled_buses_hr": 0}
+  ]
+}
+```
+
 ## GET /api/operator/hotspots?day_type=weekday&hour=9&limit=2&min_confidence=medium
+Ranked by `load_ratio_raw` (uncapped) so rows are not tied at the cap. `load_ratio` / `load_pct` / `estimated_load` stay capped (1.5x) for display; `load_ratio_raw`, `load_pct_raw` and `estimated_load_raw` are uncapped; `suggested_extra_buses_hr` uses `estimated_load_raw`. `hourly_network` uses medium+ confidence cells only; hours with none have `cells: 0` and null values; `overloaded_count` = route-directions with a crowded stretch at medium+ confidence.
 ```json
 {
   "day_type": "weekday",
@@ -407,9 +427,12 @@ Every number below is from the real run (long lists shortened with `...`).
       "seated_capacity": 33,
       "capacity": 60,
       "load_ratio": 1.5,
+      "load_ratio_raw": 15.57,
+      "load_pct_raw": 1557,
+      "estimated_load_raw": 934.2,
       "crowd_level": "crowded",
       "scheduled_buses_hr": 2,
-      "suggested_extra_buses_hr": 2,
+      "suggested_extra_buses_hr": 40,
       "ticket_count": 826,
       "confidence": "high",
       "prediction_source": "observed_tickets"
@@ -445,6 +468,7 @@ Every number below is from the real run (long lists shortened with `...`).
 ```
 
 ## GET /api/operator/network-profile?day_type=weekday
+Only cells with `ticket_count >= 10`. All 24 hours are returned; hours with no such cells have `cells: 0` and null `avg_load_ratio` / `crowded_share`.
 ```json
 {
   "day_type": "weekday",
@@ -473,6 +497,7 @@ Every number below is from the real run (long lists shortened with `...`).
 ```
 
 ## GET /api/validation/summary
+New: `headline_accuracy` (cells with 10+ test tickets: R2 0.79 unseen days, 0.74 unseen routes for the served shrinkage model, with baselines, best ML model, tier accuracy and macro-F1) and `what_is_validated` (this validates ticket volume per cell; the crowd tier also depends on the assumed capacity and scale factor). `fallback_stats` is computed from the served table (ML fallback off).
 ```json
 {
   "mode": "real",
