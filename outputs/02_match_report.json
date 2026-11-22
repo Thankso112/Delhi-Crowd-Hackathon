@@ -1,0 +1,13 @@
+{
+  "name_pairs": 69640,
+  "share_of_uses_pct": {
+    "exact_route": 69.5,
+    "partial_route": 9.2,
+    "fuzzy_route": 8.8,
+    "none": 6.1,
+    "fuzzy_global_offroute": 2.9,
+    "route_not_in_gtfs": 1.8,
+    "fuzzy_no_spaces": 1.7
+  },
+  "matched_on_route_pct": 87.5
+}

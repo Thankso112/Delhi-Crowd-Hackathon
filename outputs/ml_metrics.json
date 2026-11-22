@@ -1,0 +1,357 @@
+{
+  "split_method": "Strict temporal split: features from 1-14 Oct (weeks 1-2), training target 15-21 Oct (week 3), test on unseen 22-31 Oct. Test cells need 10+ tickets.",
+  "preprocessing_summary": "Winsorise features and training target at the 1st/99th percentile of TRAIN data, then StandardScaler, both fitted on train rows only inside one Pipeline. Row cap for SVM (12,000) and KNN search (40,000).",
+  "train_rows": 149024,
+  "test_rows": 245383,
+  "test_sparse_rows": 29035,
+  "active_fallback_model": "Gradient Boosting",
+  "ml_fallback_enabled": true,
+  "fallback_stats": {
+    "total_segments": 1770724,
+    "observed_segments": 529075,
+    "ml_fallback_segments": 1152657,
+    "ml_fallback_pct": 65.1,
+    "route_average_segments": 88992
+  },
+  "regression_models": [
+    {
+      "name": "OLS (linear regression)",
+      "mae": 0.1901,
+      "rmse": 0.2434,
+      "r2": 0.711,
+      "mae_sparse": 0.2306
+    },
+    {
+      "name": "Ridge",
+      "mae": 0.1902,
+      "rmse": 0.2434,
+      "r2": 0.711,
+      "mae_sparse": 0.2306
+    },
+    {
+      "name": "Lasso",
+      "mae": 0.1911,
+      "rmse": 0.2445,
+      "r2": 0.7083,
+      "mae_sparse": 0.2334
+    },
+    {
+      "name": "Elastic Net",
+      "mae": 0.1907,
+      "rmse": 0.244,
+      "r2": 0.7096,
+      "mae_sparse": 0.2321
+    },
+    {
+      "name": "Gradient Boosting",
+      "mae": 0.1743,
+      "rmse": 0.2328,
+      "r2": 0.7357,
+      "mae_sparse": 0.2005
+    }
+  ],
+  "baselines": [
+    {
+      "name": "BASELINE route x hour average (weeks 1-2)",
+      "mae": 0.2932,
+      "rmse": 0.4057,
+      "r2": 0.197,
+      "mae_sparse": 0.4522
+    },
+    {
+      "name": "BASELINE weeks 1-2 shrinkage estimate",
+      "mae": 0.2096,
+      "rmse": 0.313,
+      "r2": 0.5221,
+      "mae_sparse": 0.451
+    }
+  ],
+  "classification_models": [
+    {
+      "name": "KNN (k=15, chosen on validation)",
+      "accuracy": 0.7033,
+      "macro_f1": 0.5779
+    },
+    {
+      "name": "SVM (RBF, class_weight=balanced, 12k-row cap)",
+      "accuracy": 0.6961,
+      "macro_f1": 0.6464
+    },
+    {
+      "name": "BASELINE tier from weeks 1-2 shrinkage estimate",
+      "accuracy": 0.6914,
+      "macro_f1": 0.6091
+    },
+    {
+      "name": "BASELINE tier from route x hour average",
+      "accuracy": 0.5945,
+      "macro_f1": 0.515
+    }
+  ],
+  "best_classifier": "SVM (RBF, class_weight=balanced, 12k-row cap)",
+  "knn_k_scores": {
+    "3": 0.5753,
+    "5": 0.574,
+    "9": 0.5808,
+    "15": 0.582,
+    "25": 0.5812,
+    "45": 0.5714
+  },
+  "confusion_matrix": {
+    "labels": [
+      "seats_available",
+      "standing_room",
+      "crowded"
+    ],
+    "matrix": [
+      [
+        70787,
+        24380,
+        4310
+      ],
+      [
+        8940,
+        19428,
+        11145
+      ],
+      [
+        3089,
+        22706,
+        80598
+      ]
+    ]
+  },
+  "feature_importance": [
+    {
+      "feature": "own_A_idx_ratio",
+      "weight": 0.3644
+    },
+    {
+      "feature": "buses_per_hour",
+      "weight": 0.2712
+    },
+    {
+      "feature": "own_A_tix",
+      "weight": 0.1327
+    },
+    {
+      "feature": "is_weekend",
+      "weight": 0.0736
+    },
+    {
+      "feature": "routehour_A_idx_ratio",
+      "weight": 0.0561
+    },
+    {
+      "feature": "lon",
+      "weight": 0.0206
+    },
+    {
+      "feature": "dist_from_centre_km",
+      "weight": 0.0198
+    },
+    {
+      "feature": "lat",
+      "weight": 0.0171
+    },
+    {
+      "feature": "n_stops",
+      "weight": 0.0115
+    },
+    {
+      "feature": "is_ac",
+      "weight": 0.0106
+    },
+    {
+      "feature": "route_len_km",
+      "weight": 0.0061
+    },
+    {
+      "feature": "is_am_peak",
+      "weight": 0.0057
+    },
+    {
+      "feature": "is_pm_peak",
+      "weight": 0.0035
+    },
+    {
+      "feature": "route_A_idx_ratio",
+      "weight": 0.0022
+    },
+    {
+      "feature": "pos",
+      "weight": 0.0019
+    },
+    {
+      "feature": "pos_frac",
+      "weight": 0.0011
+    },
+    {
+      "feature": "towards_centre",
+      "weight": 0.0009
+    },
+    {
+      "feature": "is_up",
+      "weight": 0.0007
+    },
+    {
+      "feature": "hour",
+      "weight": 0.0003
+    }
+  ],
+  "lasso_zeroed_features": [
+    "hour",
+    "is_pm_peak",
+    "is_up",
+    "pos",
+    "pos_frac",
+    "towards_centre",
+    "route_len_km",
+    "route_A_idx_ratio"
+  ],
+  "top_correlated_pairs": [
+    {
+      "feature_a": "n_stops",
+      "feature_b": "route_len_km",
+      "pearson_r": 0.924
+    },
+    {
+      "feature_a": "own_A_idx_ratio",
+      "feature_b": "routehour_A_idx_ratio",
+      "pearson_r": 0.84
+    },
+    {
+      "feature_a": "pos",
+      "feature_b": "pos_frac",
+      "pearson_r": 0.785
+    },
+    {
+      "feature_a": "hour",
+      "feature_b": "is_am_peak",
+      "pearson_r": -0.685
+    },
+    {
+      "feature_a": "hour",
+      "feature_b": "is_pm_peak",
+      "pearson_r": 0.593
+    },
+    {
+      "feature_a": "pos",
+      "feature_b": "n_stops",
+      "pearson_r": 0.578
+    }
+  ],
+  "caveats": [
+    "The 'sparse cell' test only includes cells that later had 10+ tickets (we need a reliable answer to score against). Such cells were BUSIER than they looked in weeks 1-2, which favours any model that can infer 'this place and hour is busy' from location and time. The advantage over the baselines on sparse cells is therefore real but overstated; cells that stay sparse cannot be scored at all.",
+    "The fallback is applied with features built from the whole month (not only weeks 1-2), a slightly different window from training.",
+    "The target is itself an estimate built from a SAMPLE of riders (mobile e-tickets) scaled by an assumed factor; ML learns to predict that estimate, not a head-count."
+  ],
+  "concepts": [
+    {
+      "term": "Train / test split",
+      "summary": "Hide part of the data while the model learns, then score it on the hidden part, so we test understanding and not memory.",
+      "example": "A student practises on past papers and is judged on a new paper."
+    },
+    {
+      "term": "Temporal split",
+      "summary": "Train on the past and test on the future, never the other way round, so no future information leaks into training.",
+      "example": "Predict next week's bus crowding from the previous three weeks only."
+    },
+    {
+      "term": "Feature scaling (StandardScaler)",
+      "summary": "Rescale every column to a similar range so no column dominates only because its numbers are bigger.",
+      "example": "Distance in km and hour of day are put on the same scale before KNN measures 'closeness'."
+    },
+    {
+      "term": "Winsorizing",
+      "summary": "Cut extreme values back to the 1st and 99th percentile of the training data so a few huge numbers cannot distort the model.",
+      "example": "One day with a ticket-system glitch is capped instead of ruining the average."
+    },
+    {
+      "term": "Linear Regression (OLS)",
+      "summary": "Fits the best straight line (a weighted sum of features) through the data to predict a number.",
+      "example": "Predicting house price from size, bedrooms and age."
+    },
+    {
+      "term": "Ridge and Lasso (regularisation)",
+      "summary": "Linear regression with a brake: Ridge shrinks all weights, Lasso can shrink some to exactly zero, which also selects features.",
+      "example": "A teacher who stops you explaining a result with too many reasons."
+    },
+    {
+      "term": "Elastic Net",
+      "summary": "A mix of Ridge and Lasso, useful when several features overlap.",
+      "example": "Latitude, longitude and distance to the centre all describe 'where', so their weights are shared sensibly."
+    },
+    {
+      "term": "KNN (K-Nearest Neighbours)",
+      "summary": "To predict a new case, look at the K most similar known cases and let them vote (or average them).",
+      "example": "Judging a restaurant by the ratings of the 10 most similar ones nearby."
+    },
+    {
+      "term": "SVM (Support Vector Machine)",
+      "summary": "Draws the boundary between classes with the widest possible safety margin; with a kernel the boundary can curve.",
+      "example": "Separating spam from normal mail with the cleanest dividing line."
+    },
+    {
+      "term": "Decision Tree",
+      "summary": "A flow-chart of yes/no questions that ends in an answer; easy to read but can memorise noise if too deep.",
+      "example": "A doctor's triage chart."
+    },
+    {
+      "term": "Random Forest",
+      "summary": "Many different trees vote and their answers are averaged, which is steadier than any single tree.",
+      "example": "Asking 200 people to guess the sweets in a jar and taking the average."
+    },
+    {
+      "term": "Gradient Boosting",
+      "summary": "Builds trees one after another, each fixing the mistakes of the previous ones.",
+      "example": "A student who redoes only the questions they got wrong, round after round."
+    },
+    {
+      "term": "Logistic Regression",
+      "summary": "A linear model that outputs the probability of each class instead of a number.",
+      "example": "A bank estimating the chance a loan will be repaid."
+    },
+    {
+      "term": "Naive Bayes",
+      "summary": "Classifies using probabilities and pretends the features are independent, which makes it very fast.",
+      "example": "Spam filters multiply the probabilities of the words in a mail."
+    },
+    {
+      "term": "K-Means clustering",
+      "summary": "With no labels, groups similar items by repeatedly moving K group centres to the middle of their members.",
+      "example": "Grouping bus routes into 'morning commuter' and 'all-day' types."
+    },
+    {
+      "term": "PCA (Principal Component Analysis)",
+      "summary": "Squeezes many columns into a few new ones that keep most of the information, so data can be drawn on a 2-D plot.",
+      "example": "Plotting routes described by six numbers on a single flat map."
+    },
+    {
+      "term": "Cross-validation",
+      "summary": "Repeats the train/test experiment several times on different hidden parts and averages the scores, so one lucky split cannot fool us.",
+      "example": "Five mock exams instead of one."
+    },
+    {
+      "term": "GridSearchCV (hyper-parameter tuning)",
+      "summary": "Tries every combination of a model's settings with cross-validation and keeps the best.",
+      "example": "Trying several oven temperatures and times to find the best cake."
+    },
+    {
+      "term": "Overfitting",
+      "summary": "The model memorises the training data and does worse on new data; shown by a big gap between train and test scores.",
+      "example": "Learning last year's answers by heart instead of the subject."
+    },
+    {
+      "term": "MAE, RMSE and R2",
+      "summary": "MAE is the average size of the error, RMSE punishes big errors more, R2 is the share of variation explained (1 perfect, 0 no better than the average).",
+      "example": "An exam score shows how far off you were on average."
+    },
+    {
+      "term": "Accuracy, macro-F1 and confusion matrix",
+      "summary": "Accuracy is the share of correct labels; macro-F1 treats every class equally, even rare ones; the confusion matrix shows which classes get mixed up.",
+      "example": "A spam filter that is 95% accurate but never catches a rare scam would score poorly on macro-F1."
+    }
+  ],
+  "scale_factor": 42.86
+}

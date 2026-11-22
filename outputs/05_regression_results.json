@@ -1,0 +1,212 @@
+{
+  "best_on_unseen_routes": "Gradient Boosting",
+  "table": [
+    {
+      "model": "Baseline (always the average)",
+      "split": "random",
+      "train_R2": 0.0,
+      "test_R2": -0.001,
+      "test_MAE": 0.504,
+      "test_RMSE": 0.874,
+      "fit_seconds": 0.003
+    },
+    {
+      "model": "Baseline (always the average)",
+      "split": "unseen routes",
+      "train_R2": 0.0,
+      "test_R2": -0.008,
+      "test_MAE": 0.465,
+      "test_RMSE": 0.712,
+      "fit_seconds": 0.002
+    },
+    {
+      "model": "Linear Regression",
+      "split": "random",
+      "train_R2": 0.126,
+      "test_R2": 0.115,
+      "test_MAE": 0.471,
+      "test_RMSE": 0.822,
+      "fit_seconds": 0.01
+    },
+    {
+      "model": "Linear Regression",
+      "split": "unseen routes",
+      "train_R2": 0.128,
+      "test_R2": 0.093,
+      "test_MAE": 0.421,
+      "test_RMSE": 0.675,
+      "fit_seconds": 0.008
+    },
+    {
+      "model": "Ridge",
+      "split": "random",
+      "train_R2": 0.126,
+      "test_R2": 0.115,
+      "test_MAE": 0.471,
+      "test_RMSE": 0.822,
+      "fit_seconds": 0.008
+    },
+    {
+      "model": "Ridge",
+      "split": "unseen routes",
+      "train_R2": 0.128,
+      "test_R2": 0.093,
+      "test_MAE": 0.421,
+      "test_RMSE": 0.675,
+      "fit_seconds": 0.007
+    },
+    {
+      "model": "Lasso",
+      "split": "random",
+      "train_R2": 0.121,
+      "test_R2": 0.111,
+      "test_MAE": 0.469,
+      "test_RMSE": 0.824,
+      "fit_seconds": 0.008
+    },
+    {
+      "model": "Lasso",
+      "split": "unseen routes",
+      "train_R2": 0.123,
+      "test_R2": 0.101,
+      "test_MAE": 0.418,
+      "test_RMSE": 0.672,
+      "fit_seconds": 0.007
+    },
+    {
+      "model": "Polynomial (degree 2) + Ridge",
+      "split": "random",
+      "train_R2": 0.242,
+      "test_R2": 0.22,
+      "test_MAE": 0.439,
+      "test_RMSE": 0.772,
+      "fit_seconds": 0.039
+    },
+    {
+      "model": "Polynomial (degree 2) + Ridge",
+      "split": "unseen routes",
+      "train_R2": 0.248,
+      "test_R2": 0.171,
+      "test_MAE": 0.398,
+      "test_RMSE": 0.646,
+      "fit_seconds": 0.028
+    },
+    {
+      "model": "KNN (K=20)",
+      "split": "random",
+      "train_R2": 0.287,
+      "test_R2": 0.2,
+      "test_MAE": 0.444,
+      "test_RMSE": 0.782,
+      "fit_seconds": 0.021
+    },
+    {
+      "model": "KNN (K=20)",
+      "split": "unseen routes",
+      "train_R2": 0.291,
+      "test_R2": 0.13,
+      "test_MAE": 0.408,
+      "test_RMSE": 0.661,
+      "fit_seconds": 0.022
+    },
+    {
+      "model": "SVM (SVR, RBF kernel)",
+      "split": "random",
+      "train_R2": 0.317,
+      "test_R2": 0.239,
+      "test_MAE": 0.377,
+      "test_RMSE": 0.762,
+      "fit_seconds": 12.722
+    },
+    {
+      "model": "SVM (SVR, RBF kernel)",
+      "split": "unseen routes",
+      "train_R2": 0.336,
+      "test_R2": 0.166,
+      "test_MAE": 0.354,
+      "test_RMSE": 0.648,
+      "fit_seconds": 11.855
+    },
+    {
+      "model": "Decision Tree (depth 8)",
+      "split": "random",
+      "train_R2": 0.401,
+      "test_R2": 0.169,
+      "test_MAE": 0.432,
+      "test_RMSE": 0.797,
+      "fit_seconds": 0.053
+    },
+    {
+      "model": "Decision Tree (depth 8)",
+      "split": "unseen routes",
+      "train_R2": 0.423,
+      "test_R2": 0.091,
+      "test_MAE": 0.387,
+      "test_RMSE": 0.676,
+      "fit_seconds": 0.05
+    },
+    {
+      "model": "Random Forest",
+      "split": "random",
+      "train_R2": 0.766,
+      "test_R2": 0.358,
+      "test_MAE": 0.385,
+      "test_RMSE": 0.701,
+      "fit_seconds": 10.882
+    },
+    {
+      "model": "Random Forest",
+      "split": "unseen routes",
+      "train_R2": 0.777,
+      "test_R2": 0.216,
+      "test_MAE": 0.372,
+      "test_RMSE": 0.628,
+      "fit_seconds": 10.545
+    },
+    {
+      "model": "Gradient Boosting",
+      "split": "random",
+      "train_R2": 0.581,
+      "test_R2": 0.392,
+      "test_MAE": 0.374,
+      "test_RMSE": 0.682,
+      "fit_seconds": 0.22
+    },
+    {
+      "model": "Gradient Boosting",
+      "split": "unseen routes",
+      "train_R2": 0.617,
+      "test_R2": 0.247,
+      "test_MAE": 0.355,
+      "test_RMSE": 0.615,
+      "fit_seconds": 0.21
+    }
+  ],
+  "cv": [
+    {
+      "model": "Linear Regression",
+      "mean_R2": 0.113,
+      "std_R2": 0.031
+    },
+    {
+      "model": "KNN",
+      "mean_R2": 0.129,
+      "std_R2": 0.014
+    },
+    {
+      "model": "Random Forest",
+      "mean_R2": 0.216,
+      "std_R2": 0.016
+    },
+    {
+      "model": "Gradient Boosting",
+      "mean_R2": 0.264,
+      "std_R2": 0.033
+    }
+  ],
+  "grid_best_params": {
+    "learning_rate": 0.1,
+    "max_leaf_nodes": 15,
+    "min_samples_leaf": 20
+  }
+}

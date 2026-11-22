@@ -1,0 +1,91 @@
+{
+  "split_half_odd_even_all_cells_spearman_shrunk": 0.935,
+  "split_half_odd_even_30plus_tickets_spearman": 0.96,
+  "split_half_first_vs_second_half_spearman_shrunk": 0.911,
+  "same_level_odd_even": 0.856,
+  "no_shrinkage_spearman": 0.894,
+  "k10_spearman": 0.935,
+  "sensitivity_drop_assumed_end_spearman": 0.991,
+  "temporal_holdout": [
+    {
+      "predictor": "City baseline (band average)",
+      "cells": 172773,
+      "tier_agreement_pct": 68.366,
+      "MAE_people": 19.057,
+      "spearman": 0.186
+    },
+    {
+      "predictor": "Route baseline (route x band)",
+      "cells": 172773,
+      "tier_agreement_pct": 73.902,
+      "MAE_people": 12.638,
+      "spearman": 0.697
+    },
+    {
+      "predictor": "Our model (stretch, shrunk)",
+      "cells": 172773,
+      "tier_agreement_pct": 83.535,
+      "MAE_people": 7.351,
+      "spearman": 0.875
+    }
+  ],
+  "sensitivity": [
+    {
+      "scenario": "low",
+      "scale": 20.0,
+      "seats_available": 97.9,
+      "standing_room": 1.1,
+      "crowded": 1.0,
+      "same_tier_as_base_pct": 92.6,
+      "same_tier_high_confidence_pct": 76.4
+    },
+    {
+      "scenario": "base",
+      "scale": 42.9,
+      "seats_available": 91.6,
+      "standing_room": 3.5,
+      "crowded": 4.9,
+      "same_tier_as_base_pct": 100.0,
+      "same_tier_high_confidence_pct": 100.0
+    },
+    {
+      "scenario": "high",
+      "scale": 66.7,
+      "seats_available": 84.4,
+      "standing_room": 5.7,
+      "crowded": 10.0,
+      "same_tier_as_base_pct": 89.2,
+      "same_tier_high_confidence_pct": 69.5
+    }
+  ],
+  "organizer_curve_check": [
+    {
+      "daytype": "weekday",
+      "hour": 9,
+      "organizer": 13000,
+      "ours": 14327.0,
+      "difference_pct": 10.2
+    },
+    {
+      "daytype": "weekday",
+      "hour": 18,
+      "organizer": 8500,
+      "ours": 9902.0,
+      "difference_pct": 16.5
+    },
+    {
+      "daytype": "weekend",
+      "hour": 9,
+      "organizer": 8000,
+      "ours": 7971.0,
+      "difference_pct": -0.4
+    },
+    {
+      "daytype": "weekend",
+      "hour": 18,
+      "organizer": 4500,
+      "ours": 5168.0,
+      "difference_pct": 14.8
+    }
+  ]
+}

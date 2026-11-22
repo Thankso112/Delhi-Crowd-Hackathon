@@ -1,6 +1,12 @@
-data/raw
-data/processed/tickets.parquet
-data/processed/tickets_resolved.parquet
-__pycache__
-.pytest_cache
 .git
+legacy_v2
+notebooks
+docs
+tests
+frontend_integration
+data/raw
+outputs/figures
+outputs/model_comparison
+.env
+__pycache__
+*.ipynb

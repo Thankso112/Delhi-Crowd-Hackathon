@@ -1,0 +1,28 @@
+{
+  "K": 4,
+  "routes": 796,
+  "pca_variance_kept": 0.631,
+  "silhouette": 0.243,
+  "clusters": [
+    {
+      "label": "Evening-peak commuter (quieter)",
+      "routes": 288,
+      "avg_log_level": 0.3
+    },
+    {
+      "label": "Morning-peak commuter (busy) [group 0]",
+      "routes": 125,
+      "avg_log_level": 0.44
+    },
+    {
+      "label": "Morning-peak commuter (busy) [group 2]",
+      "routes": 90,
+      "avg_log_level": 0.75
+    },
+    {
+      "label": "Morning-peak commuter (quieter)",
+      "routes": 293,
+      "avg_log_level": 0.31
+    }
+  ]
+}

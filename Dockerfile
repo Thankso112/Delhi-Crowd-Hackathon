@@ -1,7 +1,9 @@
-FROM python:3.11-slim
+FROM python:3.12-slim
+ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
 WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY requirements-api.txt .
+RUN pip install --no-cache-dir -r requirements-api.txt
 COPY . .
-EXPOSE 7860
-CMD ["sh", "-c", "uvicorn api.main:app --host 0.0.0.0 --port ${PORT:-7860}"]
+# Cloud Run / Google Cloud passes the port in $PORT (8080 if it is not set)
+EXPOSE 8080
+CMD ["sh", "-c", "uvicorn planner.app:app --host 0.0.0.0 --port ${PORT:-8080}"]

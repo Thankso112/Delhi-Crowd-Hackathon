@@ -1,0 +1,36 @@
+{
+  "tickets_total": 2559899,
+  "tickets_usable": 2290902,
+  "share_usable": 0.8949,
+  "share_end_assumed": 0.0839,
+  "days": {
+    "weekday": 20,
+    "weekend": 11
+  },
+  "crowd_table_rows": 627324,
+  "hourly_cells": 1190724,
+  "share_demand_without_bus": 0.0368,
+  "crowd_table_hourly_rows": 1770724,
+  "calibrated_tier_share": {
+    "seats_available": 0.899,
+    "crowded": 0.061,
+    "standing_room": 0.04
+  },
+  "scale": {
+    "low": 20.0,
+    "base": 42.9,
+    "high": 66.7
+  },
+  "level_share": {
+    "low": 0.5,
+    "medium": 0.35,
+    "high": 0.15
+  },
+  "confidence_share": {
+    "low": 0.573,
+    "high": 0.266,
+    "medium": 0.161
+  },
+  "experiment_trips_inferred": 600380,
+  "experiment_median_tickets_per_trip": 1
+}

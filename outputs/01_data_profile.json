@@ -1,0 +1,12 @@
+{
+  "tickets": 2559899,
+  "days": 31,
+  "holiday_like_days": [
+    "2026-10-02",
+    "2026-10-20"
+  ],
+  "routes": 2259,
+  "vehicles": 6809,
+  "share_without_vehicle": 0.4852,
+  "share_single_passenger": 0.9344
+}
