@@ -6,7 +6,6 @@ tests
 frontend_integration
 data/raw
 outputs/figures
-outputs/model_comparison
 .env
 __pycache__
 *.ipynb
