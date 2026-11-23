@@ -5,6 +5,8 @@ A pipeline that turns **2.56 million bus e-tickets + the static GTFS timetable**
 
 > **Status:** everything below was run on the real October 2026 data. Numbers in this file come from those runs (`outputs/*.json`).
 
+**Frontend (live demo):** https://crowdwise-delhi.ai.studio/ - source code: https://github.com/sujitnayak-web/CrowdWise-Delhi
+
 ## Live API (Google Cloud)
 - Base URL: https://delhi-crowd-hackathon-1026044669617.asia-south1.run.app
 - Interactive docs: https://delhi-crowd-hackathon-1026044669617.asia-south1.run.app/docs
@@ -13,12 +15,12 @@ A pipeline that turns **2.56 million bus e-tickets + the static GTFS timetable**
 
 Deployed from the `Dockerfile` in this repository (FastAPI app `planner.app:app`). The first request after a quiet period can be slower while the service starts and loads the crowd table, so deploy Cloud Run with **`--min-instances=1`** (or ping `/api/health` on a schedule). CORS is open to all origins.
 
-Run locally: `uvicorn planner.app:app --host 0.0.0.0 --port 8000`. The deployed entry point is `planner/app.py` on Google Cloud Run (the Dockerfile in this repo). There is no Render or Streamlit deployment for the main project; the Streamlit demo lives only in `legacy_v2/`.
+Run locally: `uvicorn planner.app:app --host 0.0.0.0 --port 8000`. The deployed entry point is `planner/app.py` on Google Cloud Run (the Dockerfile in this repo).
 ## Results at a glance
 | What | Result |
 |---|---|
 | Tickets used | 2,559,899 in the file; 89.5% (2,290,902) usable after stop matching. **48.5% have no vehicle number and are all kept.** |
-| Stop-name matching | 87.5% of name uses matched to a stop on the right route (exact 69.5%, partial 9.2%, fuzzy 8.8%) |
+| Stop-name matching | 87.5% of name uses matched to a stop on the right route (exact 69.5%, partial 9.2%, fuzzy 8.8%; 89.2% including 1.7% no-space matches) |
 | Crowd table | 1,770,724 hourly rows (route x stretch x hour x day type), plus 627,324 time-band rows |
 | Temporal holdout (build from 1-21 Oct, test on unseen 22-31 Oct) | **83.5% tier agreement**, error 7.4 people; route-average baseline 73.9% / 12.6; city-average baseline 68.4% / 19.1 |
 | Reliability (two independent halves of the month) | rank correlation **0.935** (0.960 where each half has 30+ tickets) |
@@ -26,7 +28,7 @@ Run locally: `uvicorn planner.app:app --host 0.0.0.0 --port 8000`. The deployed 
 | API speed | `/api/plan` about 0.1 s |
 
 ## How the crowd estimate works (one paragraph)
-Each ticket says where a passenger boarded and left, so we spread it over the stretches it travelled (shifting the time forward with the timetable's travel times). Dividing by the **buses scheduled** on that stretch gives "ticketed riders per bus". Because the file holds only **mobile e-tickets (about 3-4% of riders)** and no pass holders, we scale it with a **configurable calibration layer** (`config.py`, base factor **42.9** = 1.5 pass-holder multiplier / 0.035 e-ticket capture rate, i.e. an assumed 3.5% of riders appear in the file and pass holders add 1.5x; low/high scenarios 20.0 / 66.7. The "24.7" in `legacy_v2/` is that older build's own calibration and is not used here) and compare it with the bus's seats and capacity (AC / non-AC) to get **seats_available / standing_room / crowded**. Thin cells lean on their route-hour or route-band average and carry a **confidence** flag. For cells with under 10 tickets the API serves that same shrinkage estimate (`prediction_source = route_average`); the machine-learning fallback is **switched off** because it did not beat shrinkage (see below).
+Each ticket says where a passenger boarded and left, so we spread it over the stretches it travelled (shifting the time forward with the timetable's travel times). Dividing by the **buses scheduled** on that stretch gives "ticketed riders per bus". Because the file holds only **mobile e-tickets (about 3-4% of riders)** and no pass holders, we scale it with a **configurable calibration layer** (`config.py`, base factor **42.9** = 1.5 pass-holder multiplier / 0.035 e-ticket capture rate, i.e. an assumed 3.5% of riders appear in the file and pass holders add 1.5x; low/high scenarios 20.0 / 66.7) and compare it with the bus's seats and capacity (AC / non-AC) to get **seats_available / standing_room / crowded**. Thin cells lean on their route-hour or route-band average and carry a **confidence** flag. For cells with under 10 tickets the API serves that same shrinkage estimate (`prediction_source = route_average`); the machine-learning fallback is **switched off** because it did not beat shrinkage (see below).
 
 ## Folder map
 ```
@@ -37,10 +39,9 @@ scripts/07_ml_models.py   strict temporal ML split (the sparse-cell ML fallback 
 fix_served_table.py   rebuilds outputs/crowd_table_served.parquet from the shrinkage table (no ML)
 src/                  readable pandas code used by the notebooks and the API
 planner/app.py        FastAPI REST API (CORS open)
-tests/                25 tests (unit, API, served-table checks)
+tests/                28 tests (unit, API, served-table checks)
 outputs/              results: figures, JSON metrics, crowd tables (Parquet), saved models
-docs/                 TECHNICAL_NOTE, PROJECT_REPORT, API_CONTRACT, ML_CONCEPTS, PRESENTATION_GUIDE
-frontend_integration/ how to connect the CrowdWise frontend to this API
+docs/                 TECHNICAL_NOTE, PROJECT_REPORT, API_CONTRACT, MODEL_COMPARISON
 data/raw/             put tickets.csv and gtfs/ here (not in git)
 ```
 
@@ -62,7 +63,7 @@ python run_all.py --check        # are the input files in place?
 python run_all.py                # everything: about 15-20 min, needs ~4 GB free RAM (8 GB comfortable)
 python run_all.py --quick        # core only (notebooks 01-04 + ML): the crowd table, validation and the API data
 uvicorn planner.app:app --host 0.0.0.0 --port 8000     # start the API  ->  http://localhost:8000/api/health
-python -m pytest -q tests        # 25 tests
+python -m pytest -q tests        # 28 tests
 python fix_served_table.py       # only if you re-run scripts/07_ml_models.py: rebuild the served table from the shrinkage table
 ```
 Or open `notebooks/` in Jupyter and run them in order - each one explains its step in plain English. The finished crowd tables are already in `outputs/`, so **the API starts immediately without re-running the pipeline.**
@@ -94,8 +95,8 @@ Headline accuracy is measured on cells (route x weekday/weekend x hour) with **1
 Built by the team with the help of AI tools: **Claude (Anthropic)** - pipeline, validation, ML and API code and documentation; **Gemini** and **Google AI Studio** - the frontend prototype and early backend experiments (its simulated data is NOT used anywhere in this project). Open-source libraries: pandas, NumPy, SciPy, scikit-learn, matplotlib, seaborn, RapidFuzz, SQLAlchemy, FastAPI, Uvicorn, PyArrow, Jupyter. Data: Transport Stack / IIIT Delhi (ONDC e-ticketing, DTC GTFS).
 
 
-## Two model families, one repository
+## Model versions
 - The main project (repository root) is the V4 pipeline: hourly crowd table, REST API, ML layer with a strict time-based test, validation and documentation.
-- `legacy_v2/` is the earlier V2 build, kept whole (including its Streamlit demo and its own ML suite). Run it from inside that folder (`cd legacy_v2`, then see its README).
+- An earlier V2 build was archived outside this repository; this repository contains only the V4 pipeline.
 - `docs/MODEL_COMPARISON.md` and `scripts/compare_v2_vs_v4.py` compare the modelling approaches of both builds on identical data. Short version: they are close, and a simple shrinkage estimate beats both at route-hour level, so the shrinkage estimate is what is served, including for thin cells.
 - Deployment: `Dockerfile` + `requirements-api.txt` (API only). `pytest.ini` limits tests to the main project.

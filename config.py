@@ -65,7 +65,7 @@ PASS_MULTIPLIER = {"low": 1.0, "base": 1.5, "high": 2.0}         # extra riders 
 SCALE = {k: PASS_MULTIPLIER[k] / EKT_CAPTURE_RATE[k] for k in ("low", "base", "high")}   # people on board per ticketed rider
 # Base scale = 1.5 / 0.035 = 42.9 people on board per ticketed rider (low 20.0, high 66.7). This is the ONE scale used by the pipeline, the API and the docs.
 # Assumption: e-tickets are ~3.5% of riders (organizers said 3-4%) and pass holders / free riders add 1.5x on top.
-# The "about 24.7" you may see in legacy_v2/ and old notes is the V2 build's own calibration (90th-percentile method); it is NOT used here.
+# (Older notes mention "about 24.7": that was an earlier build's own calibration, 90th-percentile method; it is NOT used here.)
 CAPACITY = {"ac": dict(seats=33, crush=60), "nonac": dict(seats=36, crush=70)}            # seated / maximum on board
 LOAD_CAP_RATIO = 1.5                # a bus cannot carry more than ~1.5x its crush load; higher raw values mean the GTFS schedule lists
                                      # fewer buses than really run on that route, so we cap the shown load (the raw value is kept)

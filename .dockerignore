@@ -1,11 +1,10 @@
 .git
-legacy_v2
 notebooks
 docs
 tests
-frontend_integration
 data/raw
 outputs/figures
 .env
 __pycache__
 *.ipynb
+outputs/crowd_table.parquet

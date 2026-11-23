@@ -1,6 +1,0 @@
-data/raw
-data/processed/tickets.parquet
-data/processed/tickets_resolved.parquet
-__pycache__
-.pytest_cache
-.git

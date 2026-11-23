@@ -3,10 +3,10 @@
 Base URL (local): `http://localhost:8000` - start with `uvicorn planner.app:app --host 0.0.0.0 --port 8000`.
 Interactive docs: `http://localhost:8000/docs`. CORS is open to every origin (`*`), including the private-network preflight, so a page served from a public https address can call a server on `localhost`.
 All responses are JSON. Errors always look like `{"error": {"code", "message", "details"}}` - never an HTML page.
-Every number below is from the real run (long lists shortened with `...`).
+Numbers below come from the real run (long lists shortened with `...`). The plan and route examples were captured before the ML fallback was switched off, so their load values and `prediction_source` can differ from the live API; `/docs` shows live output.
 
 **Crowd tiers:** `seats_available` | `standing_room` | `crowded` (and `unknown` when no bus is scheduled at that hour). **Confidence:** `high` | `medium` | `low`.
-**`prediction_source`:** `observed_tickets` (10+ tickets behind the number), `ml_fallback` (machine-learning estimate for a cell with few tickets), `route_average` (fallback to the route-hour / route-band average).
+**`prediction_source`:** `observed_tickets` (10+ tickets behind the number), `ml_fallback` (reserved: the ML fallback is disabled, so the API does not return it), `route_average` (fallback to the route-hour / route-band average).
 **`load_ratio`** = estimated people on board / bus capacity (calibrated, capped at 1.5). Show *crowd_level* to commuters; do not recompute the tier from the ratio in the UI.
 
 ## Endpoints
@@ -39,7 +39,7 @@ Every number below is from the real run (long lists shortened with `...`).
     "lat": 28.631,
     "lng": 77.217
   },
-  "ml_fallback_model": "Gradient Boosting",
+  "ml_fallback_model": "none (disabled: shrinkage estimate is served)",
   "crowd_table_file": "crowd_table_served.parquet",
   "calibration": {
     "eticket_capture_rate": 0.035,
@@ -140,7 +140,7 @@ Every number below is from the real run (long lists shortened with `...`).
       "max_load_ratio": 1.113,
       "avg_load_ratio": 0.596,
       "confidence": "low",
-      "prediction_source": "ml_fallback",
+      "prediction_source": "route_average",
       "ticket_count": 338,
       "legs": [
         {
@@ -170,7 +170,7 @@ Every number below is from the real run (long lists shortened with `...`).
           "avg_load_ratio": 0.89,
           "ticket_count": 96,
           "confidence": "low",
-          "prediction_source": "ml_fallback",
+          "prediction_source": "route_average",
           "path": [
             [
               28.658,
@@ -594,9 +594,9 @@ New: `headline_accuracy` (cells with 10+ test tickets: R2 0.79 unseen days, 0.74
     "..."
   ],
   "tier_distribution": {
-    "crowded": 0.572,
-    "seats_available": 0.332,
-    "standing_room": 0.096
+    "crowded": 0.061,
+    "seats_available": 0.899,
+    "standing_room": 0.04
   },
   "confidence_distribution": {
     "low": 0.701,
@@ -606,9 +606,9 @@ New: `headline_accuracy` (cells with 10+ test tickets: R2 0.79 unseen days, 0.74
   "fallback_stats": {
     "total_segments": 1770724,
     "observed_segments": 529075,
-    "ml_fallback_segments": 1152657,
-    "ml_fallback_pct": 65.1,
-    "route_average_segments": 88992
+    "ml_fallback_segments": 0,
+    "ml_fallback_pct": 0.0,
+    "route_average_segments": 1241649
   },
   "generated_from": "real run outputs (outputs/*.json)"
 }
@@ -622,14 +622,14 @@ New: `headline_accuracy` (cells with 10+ test tickets: R2 0.79 unseen days, 0.74
   "train_rows": 149024,
   "test_rows": 245383,
   "test_sparse_rows": 29035,
-  "active_fallback_model": "Gradient Boosting",
-  "ml_fallback_enabled": true,
+  "active_fallback_model": "none (disabled: shrinkage estimate is served)",
+  "ml_fallback_enabled": false,
   "fallback_stats": {
     "total_segments": 1770724,
     "observed_segments": 529075,
-    "ml_fallback_segments": 1152657,
-    "ml_fallback_pct": 65.1,
-    "route_average_segments": 88992
+    "ml_fallback_segments": 0,
+    "ml_fallback_pct": 0.0,
+    "route_average_segments": 1241649
   },
   "regression_models": [
     {
