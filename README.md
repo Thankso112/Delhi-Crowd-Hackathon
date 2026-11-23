@@ -217,6 +217,7 @@ Example: `/api/plan?origin=Anand Vihar&destination=Connaught Place&time=18:30`
  
 - **[Aditya Priyadarshan](https://github.com/Thankso112)**
 - **[Sujit Kumar Nayak](https://github.com/sujitnayak-web)**
+- **[Saitirtha Behera](https://github.com/SaitirthaBehera)**
 - **AI tools** were used in building this project: Claude (Anthropic) for the pipeline, validation, ML and API code and docs; Gemini and Google AI Studio for the frontend prototype.
 - **Open-source libraries:** React, Vite, Tailwind CSS, FastAPI, pandas, scikit-learn and others (see `package.json` and `backend/requirements.txt`).
 - **Data:** Transport Stack and IIIT Delhi (ONDC e-ticketing, DTC GTFS).
