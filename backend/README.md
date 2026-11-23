@@ -1,100 +1,202 @@
-# CrowdWise Delhi - crowd-aware bus journey planner
+<div align="center">
 
-Transport Stack Hackathon 2026 (Delhi) - Problem 2, Phase 1.
-A pipeline that turns **2.56 million bus e-tickets + the static GTFS timetable** into a crowd estimate for every **route, stretch, hour and day type**, a **journey planner** that shows that crowding next to every option, a **REST API** for the frontend, and a **machine-learning layer** with a strict time-based test.
+# 🚌 CrowdWise Delhi · Backend
 
-> **Status:** everything below was run on the real October 2026 data. Numbers in this file come from those runs (`outputs/*.json`).
+### Crowding predictions for every Delhi bus route, hour by hour.
 
-**Frontend (live demo):** https://crowdwise-delhi.ai.studio/ - source code: https://github.com/sujitnayak-web/CrowdWise-Delhi
+REST API behind the CrowdWise Delhi journey planner, built for **Transport Stack Hackathon 2026 · Problem 2**.
 
-## Live API (Google Cloud)
-- Base URL: https://delhi-crowd-hackathon-1026044669617.asia-south1.run.app
-- Interactive docs: https://delhi-crowd-hackathon-1026044669617.asia-south1.run.app/docs
-- Health check: https://delhi-crowd-hackathon-1026044669617.asia-south1.run.app/api/health
-- Example: `/api/plan?origin=Anand Vihar&destination=Connaught Place&time=18:30`
+<br/>
 
-Deployed from the `Dockerfile` in this repository (FastAPI app `planner.app:app`). The first request after a quiet period can be slower while the service starts and loads the crowd table, so deploy Cloud Run with **`--min-instances=1`** (or ping `/api/health` on a schedule). CORS is open to all origins.
+![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![Google Cloud Run](https://img.shields.io/badge/Cloud_Run-4285F4?style=for-the-badge&logo=googlecloud&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)
+![REST API](https://img.shields.io/badge/REST-JSON_API-1F4D3A?style=for-the-badge)
 
-Run locally: `uvicorn planner.app:app --host 0.0.0.0 --port 8000`. The deployed entry point is `planner/app.py` on Google Cloud Run (the Dockerfile in this repo).
-## Results at a glance
-| What | Result |
-|---|---|
-| Tickets used | 2,559,899 in the file; 89.5% (2,290,902) usable after stop matching. **48.5% have no vehicle number and are all kept.** |
-| Stop-name matching | 87.5% of name uses matched to a stop on the right route (exact 69.5%, partial 9.2%, fuzzy 8.8%; 89.2% including 1.7% no-space matches) |
-| Crowd table | 1,770,724 hourly rows (route x stretch x hour x day type), plus 627,324 time-band rows |
-| Temporal holdout (build from 1-21 Oct, test on unseen 22-31 Oct) | **83.5% tier agreement**, error 7.4 people; route-average baseline 73.9% / 12.6; city-average baseline 68.4% / 19.1 |
-| Reliability (two independent halves of the month) | rank correlation **0.935** (0.960 where each half has 30+ tickets) |
-| Model comparison (unseen days, cells with 10+ test tickets) | shrinkage estimate **R2 0.79** vs best ML 0.66 (Gradient Boosting); on unseen routes 0.74 vs 0.60. **Shrinkage wins, so it is what the API serves.** See "What the validation covers" |
-| API speed | `/api/plan` about 0.1 s |
+![Routes](https://img.shields.io/badge/route--directions-2%2C574-F59E0B?style=flat-square)
+![Records](https://img.shields.io/badge/ticket_records-2.56M-F59E0B?style=flat-square)
+![R2](https://img.shields.io/badge/R%C2%B2_unseen_days-0.79-16A34A?style=flat-square)
+![R2 routes](https://img.shields.io/badge/R%C2%B2_unseen_routes-0.743-16A34A?style=flat-square)
+![CORS](https://img.shields.io/badge/CORS-open-64748B?style=flat-square)
 
-## How the crowd estimate works (one paragraph)
-Each ticket says where a passenger boarded and left, so we spread it over the stretches it travelled (shifting the time forward with the timetable's travel times). Dividing by the **buses scheduled** on that stretch gives "ticketed riders per bus". Because the file holds only **mobile e-tickets (about 3-4% of riders)** and no pass holders, we scale it with a **configurable calibration layer** (`config.py`, base factor **42.9** = 1.5 pass-holder multiplier / 0.035 e-ticket capture rate, i.e. an assumed 3.5% of riders appear in the file and pass holders add 1.5x; low/high scenarios 20.0 / 66.7) and compare it with the bus's seats and capacity (AC / non-AC) to get **seats_available / standing_room / crowded**. Thin cells lean on their route-hour or route-band average and carry a **confidence** flag. For cells with under 10 tickets the API serves that same shrinkage estimate (`prediction_source = route_average`); the machine-learning fallback is **switched off** because it did not beat shrinkage (see below).
+</div>
 
-## Folder map
-```
-run_all.py            ONE command to rebuild everything from the raw files
-config.py             every assumption and setting (read this first)
-notebooks/            01 load+explore -> 02 GTFS+stop matching -> 03 crowd index -> 04 validation -> 05/06/07 ML lessons
-scripts/07_ml_models.py   strict temporal ML split (the sparse-cell ML fallback is disabled: enabled = False)
-fix_served_table.py   rebuilds outputs/crowd_table_served.parquet from the shrinkage table (no ML)
-src/                  readable pandas code used by the notebooks and the API
-planner/app.py        FastAPI REST API (CORS open)
-tests/                28 tests (unit, API, served-table checks)
-outputs/              results: figures, JSON metrics, crowd tables (Parquet), saved models
-docs/                 TECHNICAL_NOTE, PROJECT_REPORT, API_CONTRACT, MODEL_COMPARISON
-data/raw/             put tickets.csv and gtfs/ here (not in git)
-```
+---
 
-## Get the data (not included: too large)
-1. **Tickets** - `October-Delhi.csv.zip` from the hackathon (link in the problem statement) -> unzip and save as `data/raw/tickets.csv` (about 290 MB, 2,559,899 rows).
-2. **Static GTFS** - request "Delhi Buses: GTFS Static Data - DTC / DoT" on https://delhi.transportstack.in -> unzip into `data/raw/gtfs/` (needs `stops.txt routes.txt trips.txt stop_times.txt`).
+## ✨ What does it do?
 
-## Setup (Windows / macOS / Linux, Python 3.10-3.12)
+The backend turns static **GTFS** data and about **2.56 million** October 2026 ETM / e-ticket records into crowding estimates for every route-direction, at any **hour** and **day type** (weekday or weekend).
+
+- 📍 Estimates load and crowding for each route and each stretch between stops.
+- 🚦 Ranks overloaded corridors for operators.
+- 🧳 Plans journeys that take crowding into account.
+- 🤖 Reports model validation and coverage.
+
+**Coverage:** 2,574 route-directions (1,406 base routes).
+
+---
+
+## 🌐 Live service
+
+**Base URL:** `https://delhi-crowd-hackathon-1026044669617.asia-south1.run.app`
+
+- Hosted on Google Cloud Run, region `asia-south1`.
+- CORS is open to all origins.
+- One instance is kept warm. A request after a quiet period can still take about 8–9 seconds, so clients should use a 30 second timeout with one retry.
+
+---
+
+## 🔌 API endpoints
+
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /api/health` | Health check |
+| `GET /api/routes` | Route list |
+| `GET /api/routes/summary?day_type=&hour=` | One row per route-direction (about 1 MB). Fetch once per day type and hour, and cache it. |
+| `GET /api/routes/{route_id}/crowd` | Stops and per-stretch crowding for one route-direction |
+| `GET /api/operator/hotspots` | Ranked overloaded corridors |
+| `GET /api/operator/network-profile` | Network load for all 24 hours |
+| `GET /api/plan` | Journey planning |
+| `GET /api/stops` | Stops |
+| `GET /api/ml/insights` | Model metrics and data coverage |
+| `GET /api/validation/summary` | Validation results |
+
+Full request and response types: [`docs/API_CONTRACT.md`](docs/API_CONTRACT.md). Typed TypeScript client with examples: [`frontend_integration/apiClient.ts`](frontend_integration/apiClient.ts).
+
+### Hotspots query options
+
+| Parameter | Values | Default |
+| --- | --- | --- |
+| `day_type` | `weekday`, `weekend` | n/a |
+| `hour` | `0` to `23`, or `all` | n/a |
+| `min_confidence` | `low`, `medium`, `high` | `medium` |
+| `limit` | number of rows | n/a |
+
+---
+
+## 📦 Response fields
+
+### `/api/routes/summary` row
+
+| Field | Meaning |
+| --- | --- |
+| `route_id` | Unique per route-direction. Safe to pass to `/api/routes/{route_id}/crowd`. |
+| `route_short_name`, `route_long_name` | Route number and full name |
+| `direction_id`, `direction` | Direction of travel |
+| `busiest_stretch` | Busiest stretch of the route (null if no data) |
+| `load_ratio_raw` | Uncapped load ratio. Sort and colour by this. |
+| `load_pct` | Load percentage, capped at 100 for display |
+| `crowd_level` | Crowding level, or `unknown` when there is no data |
+| `confidence` | `low`, `medium` or `high` |
+| `prediction_source` | `observed_tickets` or `route_average` |
+| `ticket_count` | Tickets behind the estimate |
+| `scheduled_buses_hr` | Scheduled buses per hour |
+
+### Hotspot extras
+
+| Field | Meaning |
+| --- | --- |
+| `load_ratio_raw`, `load_pct_raw`, `estimated_load_raw` | Uncapped values. `load_pct_raw` can be 1557 or more, so cap it when displaying. |
+| `load_ratio`, `load_pct`, `estimated_load` | Capped at 1.5, 100 and 90 |
+| `suggested_extra_buses_hr` | Based on the raw load, so it can be large (for example 40) |
+
+---
+
+## 📐 How to read the data
+
+- **No data:** rows with `crowd_level: "unknown"`, `confidence: "low"` and null `load_pct`, `load_ratio_raw` and `busiest_stretch`. At weekday 09:00, about 1,000 of 2,574 rows are like this. This is expected.
+- **Low confidence:** `confidence === "low"` or `prediction_source === "route_average"`.
+- **Null hours:** in `hourly_network` and `/api/operator/network-profile`, hours with too little medium or high confidence data return `cells: 0` and null averages. Treat these as "no data", not zero load.
+- **Busiest stretch:** ignores the first and last 2 stops, and stretches with fewer than 10 tickets.
+- **Crowded share:** about 6% of the network overall, and about 30% at weekday 09:00. Earlier versions showed 57% because of a model artefact, so the lower number is correct.
+
+---
+
+## 🧪 Model validation
+
+| Test | R² |
+| --- | --- |
+| Unseen days | **0.79** |
+| Unseen routes | **0.743** |
+
+These come from the `headline_accuracy` block in `/api/validation/summary`. The older `temporal_holdout_w1_w3_to_w4` block is a different, earlier test, so label the two differently if you show both.
+
+---
+
+## 🛠️ Tech stack
+
+| Layer | Technology |
+| --- | --- |
+| Language | Python |
+| API | FastAPI |
+| Data | GTFS + ETM / e-ticket records |
+| Model | Gradient-boosted regression |
+| Hosting | Google Cloud Run (`asia-south1`) |
+| Container | Docker |
+
+---
+
+## 🚀 Run locally
+
 ```bash
-conda create -n crowd python=3.12 -y && conda activate crowd      # or any virtualenv
+git clone https://github.com/Thankso112/Delhi-Crowd-Hackathon.git
+cd Delhi-Crowd-Hackathon/backend
+python -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
-copy .env.example .env                                           # (cp on macOS/Linux) only needed for MySQL
+uvicorn main:app --reload --port 8080
 ```
-Storage is a **local SQLite file by default (zero setup)**. To use MySQL instead, put your details in `.env` and set `USE_MYSQL=1`.
 
-## Run
+Then open `http://localhost:8080/api/health`.
+
+### Environment variables
+
+| Variable | Description |
+| --- | --- |
+| `PORT` | Port the server listens on (Cloud Run sets this) |
+
+---
+
+## ☁️ Deploy to Cloud Run
+
 ```bash
-python run_all.py --check        # are the input files in place?
-python run_all.py                # everything: about 15-20 min, needs ~4 GB free RAM (8 GB comfortable)
-python run_all.py --quick        # core only (notebooks 01-04 + ML): the crowd table, validation and the API data
-uvicorn planner.app:app --host 0.0.0.0 --port 8000     # start the API  ->  http://localhost:8000/api/health
-python -m pytest -q tests        # 28 tests
-python fix_served_table.py       # only if you re-run scripts/07_ml_models.py: rebuild the served table from the shrinkage table
+gcloud run deploy delhi-crowd-hackathon \
+  --source . \
+  --region asia-south1 \
+  --allow-unauthenticated \
+  --min-instances 1
 ```
-Or open `notebooks/` in Jupyter and run them in order - each one explains its step in plain English. The finished crowd tables are already in `outputs/`, so **the API starts immediately without re-running the pipeline.**
 
-## API (details and JSON examples in `docs/API_CONTRACT.md`)
-`/api/health` `/api/stops?q=` `/api/plan?origin=&destination=&time=HH:MM&day_type=&preference=` `/api/routes` `/api/routes/summary?day_type=&hour=` `/api/routes/{id}/crowd` `/api/operator/hotspots` (default `min_confidence=medium`, ranked by uncapped load) `/api/operator/network-profile` `/api/validation/summary` `/api/ml/insights`
+`--min-instances 1` keeps one instance warm to avoid slow cold starts.
 
-## What the validation covers
-Headline accuracy is measured on cells (route x weekday/weekend x hour) with **10+ test tickets**, on **ticket volume per day (log scale)**, with a strict time split (features 8-21 Oct, target 22-31 Oct) and a second test on routes held out of training. Source: `outputs/model_comparison/compare_results.csv`, exposed in `/api/validation/summary` under `headline_accuracy`.
+---
 
-| Test | Shrinkage (served) | Own-history baseline | Best ML (R2) | Global mean |
-|---|---|---|---|---|
-| R2, unseen days | **0.790** | 0.713 | 0.662 (Gradient Boosting) | -4.63 |
-| R2, unseen routes | **0.743** | 0.662 | 0.605 (Gradient Boosting) | -4.48 |
-| Tier accuracy / macro-F1, unseen days | 0.793 / 0.613 | 0.775 / 0.592 | 0.838 / 0.608 (SVM) | 0.018 / 0.011 |
-| Tier accuracy / macro-F1, unseen routes | 0.776 / 0.605 | 0.758 / 0.583 | 0.833 / 0.599 (SVM) | 0.019 / 0.012 |
+## 📁 Project structure
 
-**This validates ticket volume, not crowding.** The crowd tier also depends on assumptions that nobody has validated: bus capacity (AC 33/60, non-AC 36/70) and the scale factor (42.9). The sensitivity test shows how far the tiers move if the scale is wrong. Older stretch-level numbers in `docs/TECHNICAL_NOTE.md` section 6 (target = load ratio, sparse-cell test) measure a different thing on a biased subset and must not be compared with the table above.
+```text
+backend/
+├── docs/
+│   └── API_CONTRACT.md        Endpoint and field reference
+├── frontend_integration/
+│   └── apiClient.ts           Typed client with examples
+├── main.py                    API app
+├── requirements.txt           Python dependencies
+└── Dockerfile                 Container build
+```
 
-## Assumptions and limits (full list in `docs/TECHNICAL_NOTE.md`)
-- The tickets are a **sample** of riders, so crowd levels depend on the calibration assumptions; we report a sensitivity test (tiers stay the same for about 92.6% / 89.2% of cells if the scale is wrong in either direction).
-- The GTFS has one calendar for all 7 days, so weekend supply equals weekday supply.
-- Bus size is not in the data (only AC / non-AC); capacities in `config.py` are assumptions.
-- About 6.1% of name uses could not be matched and 8.4% of usable tickets have an assumed end stop.
-- Quiet-looking cells are mostly **estimates** (see `prediction_source` in the API): observed tickets (10+) back 29.9% of stretch-hours; the other 70.1% use the shrinkage / route-average estimate (low confidence). Operator views default to medium+ confidence.
-- Displayed load is capped at 1.5x crush capacity; hotspots are ranked by the uncapped `load_ratio_raw` so the top of the list is not a wall of ties.
+---
 
-## Credits
-Built by the team with the help of AI tools: **Claude (Anthropic)** - pipeline, validation, ML and API code and documentation; **Gemini** and **Google AI Studio** - the frontend prototype and early backend experiments (its simulated data is NOT used anywhere in this project). Open-source libraries: pandas, NumPy, SciPy, scikit-learn, matplotlib, seaborn, RapidFuzz, SQLAlchemy, FastAPI, Uvicorn, PyArrow, Jupyter. Data: Transport Stack / IIIT Delhi (ONDC e-ticketing, DTC GTFS).
+## 🔗 Frontend
 
+The web app that uses this API: [CrowdWise-Delhi](https://github.com/sujitnayak-web/CrowdWise-Delhi)
 
+---
+
+<div align="center">
+
+Made with ❤️ for **Transport Stack Hackathon 2026 · Delhi**
+
+</div>
 ## Model versions
 - The main project (repository root) is the V4 pipeline: hourly crowd table, REST API, ML layer with a strict time-based test, validation and documentation.
 - An earlier V2 build was archived outside this repository; this repository contains only the V4 pipeline.
