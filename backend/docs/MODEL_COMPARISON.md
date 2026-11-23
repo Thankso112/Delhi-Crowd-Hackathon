@@ -1,6 +1,6 @@
 # V2 vs V4 modelling approaches - same data, same split, same metrics
 
-This repository contains two earlier builds of the crowd model. Their own saved scores were not comparable (different targets,
+Two earlier builds of the crowd model (V2 and V4) were compared; the V2 code is archived outside this repository. Their own saved scores were not comparable (different targets,
 test windows, filters and class balance), so `scripts/compare_v2_vs_v4.py` rebuilds ONE dataset from the raw October tickets and scores
 the model families of both builds on identical rows. Raw output: `outputs/model_comparison/compare_report.md` and `compare_results.csv`.
 

@@ -1,12 +1,12 @@
 # CrowdWise Delhi - a crowd-aware bus journey planner
 ### Project report - Transport Stack Hackathon 2026 (Delhi), Problem 2 / Phase 1
 
-*Team: [names] - Backend and ML: [name] - Frontend: [name]. All figures and numbers in this report come from runs on the real October 2026 data (files in `outputs/`).*
+*Team: Backend and ML: Aditya Priyadarshan - Frontend: Sujit Kumar Nayak - Ideas and review: Saitirtha Behera. All figures and numbers in this report come from runs on the real October 2026 data (files in `outputs/`).*
 
 ---
 
 ## 1. Summary
-Commuters rank bus options by time and changes, but a packed bus is slow to board and hard to stand in. We turn **2,559,899 bus e-tickets** and the **static GTFS timetable** into an estimate of **how full a bus is for every route, stretch, hour and day type**, show it as *seats available / standing room / crowded* next to each journey option, and let the traveller choose between a faster and a more comfortable trip, or leave 15-30 minutes later. An operator view lists the most overloaded routes and hours. The estimate is validated on days it never saw (**83.5% tier agreement**), a machine-learning layer fills thin cells, and every number carries a confidence flag.
+Commuters rank bus options by time and changes, but a packed bus is slow to board and hard to stand in. We turn **2,559,899 bus e-tickets** and the **static GTFS timetable** into an estimate of **how full a bus is for every route, stretch, hour and day type**, show it as *seats available / standing room / crowded* next to each journey option, and let the traveller choose between a faster and a more comfortable trip, or leave 15-30 minutes later. An operator view lists the most overloaded routes and hours. The estimate is validated on days it never saw (**83.5% tier agreement**), thin cells use a shrinkage estimate (an ML fallback was tested and switched off because it did not beat it), and every number carries a confidence flag.
 
 ## 2. The data - and three facts that shaped the design
 1. **About 48.5% of tickets have no vehicle number.** The organizers asked us not to drop them. We estimate crowding per *(route, stretch, hour, day type)*, not per physical bus, so every ticket counts.
@@ -22,12 +22,12 @@ raw tickets (CSV) --+                                         +--> crowd table (
                     +--> stop matching --> locate tickets --> demand per stretch/hour                       ^
 static GTFS --------+--> route patterns --> scheduled buses (supply) --+                                   |
                                                                        +--> calibration + confidence ------+
-                                                         ML fallback (temporal split) for thin cells
+                                                         shrinkage to route / band averages for thin cells
 ```
 
 ## 4. Method
 (Steps in `docs/TECHNICAL_NOTE.md`, code in `src/`.)
-- **Stop matching:** 87.5% of name uses matched to a stop on the right route (exact + aliases 69.5%, partial 9.2%, fuzzy 8.8%). 89.5% of tickets are usable.
+- **Stop matching:** 87.5% of name uses matched to a stop on the right route (exact + aliases 69.5%, partial 9.2%, fuzzy 8.8%; 89.2% including 1.7% no-space matches). 89.5% of tickets are usable.
 - **Crowd index** = ticketed riders / scheduled buses, with each ticket spread over the stretches it travelled and shifted in time by the timetable.
 - **Calibration:** x 42.9 (assumption: 3.5% capture, 1.5 pass multiplier; low/high scenarios tested), compared with AC / non-AC capacity.
 - **Confidence and fallback:** stretch-hour -> route-hour -> route-band -> city; 30+ tickets high, 10+ medium.
@@ -52,11 +52,11 @@ static GTFS --------+--> route patterns --> scheduled buses (supply) --+        
 **What we can claim:** the index is stable, robust to our end-stop assumption, plausible (peaks, weekday vs weekend), and honest about thin data. **What we cannot claim:** that "crowded" means an exact head-count - that needs on-board counts or GPS.
 
 ## 6. Machine learning
-We used machine learning where it helps the product - **estimating cells with few tickets** - and kept the learning notebooks (05-07) for understanding the methods.
+We tested machine learning as a comparison for the shrinkage estimate that the API serves, and kept the learning notebooks (05-07) for understanding the methods.
 - **Strict temporal split:** features from weeks 1-2, training target week 3, test on unseen 22-31 Oct. Winsorising and scaling are fitted on training rows only.
 - **Regression (load ratio):** OLS, Ridge, Lasso, Elastic Net, Gradient Boosting. **Classification (tiers):** KNN (k chosen on a validation split), SVM (class-balanced, row cap).
-- **Fallback:** for cells with under 10 tickets the API uses the ML prediction because it beat the baselines on sparse cells; the API labels each segment `observed_tickets`, `ml_fallback` or `route_average`. 65.1% of stretch-hours are served by the fallback.
-- **Caveat:** the sparse-cell test favours the model (see technical note, section 6).
+- **Fallback: disabled.** An ML fallback for cells with under 10 tickets was built and switched off because the shrinkage estimate beat every ML model (R2 0.79 vs 0.66). The API labels each segment `observed_tickets` (29.9%) or `route_average` (70.1%); none is served by ML.
+- **Caveat:** the ML comparison on sparse cells has a selection effect (technical note, section 6). The headline accuracy is the route-hour comparison in the README.
 
 ![ML comparison](../outputs/figures/ml_model_comparison.png) ![confusion matrix](../outputs/figures/ml_confusion_matrix.png)
 
@@ -69,7 +69,7 @@ Eight endpoints (`docs/API_CONTRACT.md`): health, stop autocomplete, plan, route
 Calibration assumptions; weekend timetable missing in GTFS; bus size unknown; unmatched names (6.1%); no real-time or event data; ML evidence caveat. **Future:** validate against GPS or on-board counts, alias table for unmatched names, several stop patterns per route, multi-transfer planning.
 
 ## 9. Reproducibility
-`python run_all.py` rebuilds everything from the two raw files (about 15-20 minutes); `python -m pytest -q tests` runs 16 tests; the API starts with `uvicorn planner.app:app`. Everything is in one repository; assumptions are in `config.py`.
+`python run_all.py` rebuilds everything from the two raw files (about 15-20 minutes); `python -m pytest -q tests` runs 28 tests; the API starts with `uvicorn planner.app:app`. Everything is in one repository; assumptions are in `config.py`.
 
 ## 10. Credits
 Claude (Anthropic), Gemini and Google AI Studio were used as AI assistants; open-source libraries are listed in the README. The simulated data from the AI Studio prototype is not used anywhere.
