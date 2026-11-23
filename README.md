@@ -1,27 +1,29 @@
 <div align="center">
-# 🚌 CrowdWise Delhi
+<h1>🚌 CrowdWise Delhi</h1>
  
-### Crowd-aware bus journey planner for Delhi
+<h3>Crowd-aware bus journey planner for Delhi</h3>
  
-Estimates whether each bus option will have **seats**, **standing room**, or be **crowded**.<br/>
-**Transport Stack Hackathon 2026 · Problem 2 · Phase 1**
- 
-<br/>
-![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
-![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
-![Vite](https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=vite&logoColor=white)
-![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white)
-![Google Maps](https://img.shields.io/badge/Google_Maps-4285F4?style=for-the-badge&logo=googlemaps&logoColor=white)
-![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)
-![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)
-![Google Cloud Run](https://img.shields.io/badge/Cloud_Run-4285F4?style=for-the-badge&logo=googlecloud&logoColor=white)
- 
-![Data](https://img.shields.io/badge/data-Oct_2026_e--tickets-F59E0B?style=flat-square)
-![GTFS](https://img.shields.io/badge/timetable-DTC_GTFS-1F4D3A?style=flat-square)
-![Tier agreement](https://img.shields.io/badge/tier_agreement-83.5%25-16A34A?style=flat-square)
- 
-**[Live demo](https://crowdwise-delhi.ai.studio/)** · **[Live API](https://delhi-crowd-hackathon-1026044669617.asia-south1.run.app/docs)**
- 
+<p>Estimates whether each bus option will have <b>seats</b>, <b>standing room</b>, or be <b>crowded</b>.<br>
+<b>Transport Stack Hackathon 2026 · Problem 2 · Phase 1</b></p>
+<p>
+<img src="https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB" alt="React">
+<img src="https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript">
+<img src="https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=vite&logoColor=white" alt="Vite">
+<img src="https://img.shields.io/badge/Tailwind_CSS-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white" alt="Tailwind CSS">
+<img src="https://img.shields.io/badge/Google_Maps-4285F4?style=for-the-badge&logo=googlemaps&logoColor=white" alt="Google Maps">
+<img src="https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python">
+<img src="https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white" alt="FastAPI">
+<img src="https://img.shields.io/badge/Cloud_Run-4285F4?style=for-the-badge&logo=googlecloud&logoColor=white" alt="Google Cloud Run">
+</p>
+<p>
+<img src="https://img.shields.io/badge/data-Oct_2026_e--tickets-F59E0B?style=flat-square" alt="Data">
+<img src="https://img.shields.io/badge/timetable-DTC_GTFS-1F4D3A?style=flat-square" alt="GTFS">
+<img src="https://img.shields.io/badge/tier_agreement-83.5%25-16A34A?style=flat-square" alt="Tier agreement">
+</p>
+<p>
+<a href="https://crowdwise-delhi.ai.studio/"><b>Live demo</b></a> ·
+<a href="https://delhi-crowd-hackathon-1026044669617.asia-south1.run.app/docs"><b>Live API</b></a>
+</p>
 </div>
 ---
  
@@ -215,7 +217,6 @@ Example: `/api/plan?origin=Anand Vihar&destination=Connaught Place&time=18:30`
  
 - **[Aditya Priyadarshan](https://github.com/Thankso112)**
 - **[Sujit Kumar Nayak](https://github.com/sujitnayak-web)**
-- **[Saitirtha Behera](https://github.com/SaitirthaBehera)**
 - **AI tools** were used in building this project: Claude (Anthropic) for the pipeline, validation, ML and API code and docs; Gemini and Google AI Studio for the frontend prototype.
 - **Open-source libraries:** React, Vite, Tailwind CSS, FastAPI, pandas, scikit-learn and others (see `package.json` and `backend/requirements.txt`).
 - **Data:** Transport Stack and IIIT Delhi (ONDC e-ticketing, DTC GTFS).
@@ -225,8 +226,5 @@ See [`backend/LICENSE`](backend/LICENSE).
  
 ---
  
-<div align="center">
-Made with ❤️ for **Transport Stack Hackathon 2026 · Delhi**
- 
-</div>
+<p align="center">Made with ❤️ for <b>Transport Stack Hackathon 2026 · Delhi</b></p>
  
