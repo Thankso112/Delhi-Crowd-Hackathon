@@ -89,3 +89,7 @@ RANDOM_STATE = 42
 CITY_CENTRE = (28.6315, 77.2167)   # Connaught Place, for the "distance to centre" feature
 ML_MIN_TICKETS = 5                 # ignore cells built from fewer tickets than this
 ML_SAMPLE_ROWS = 20000             # rows used to train the models (SVM and KNN get very slow on millions of rows)
+
+# A raw load above this multiple of crush capacity is not a real crowd: the GTFS schedule lists fewer buses than actually run, so tickets / listed buses blows up.
+# Such rows are flagged schedule_undercount, ranked after unflagged rows, and their suggested extra buses are capped at the listed buses per hour.
+SCHEDULE_UNDERCOUNT_RATIO = 3.0

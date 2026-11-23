@@ -91,3 +91,22 @@ def test_busiest_stretch_skips_terminal_hops(client):
     d = client.get(f"/api/routes/{r['route_short_name']}/crowd", params=dict(day_type="weekday", hour=9)).json()
     segs = d["segments"]; i = next(k for k, s in enumerate(segs) if (s["from_stop_name"] + " \u2013 " + s["to_stop_name"]) == d["busiest_stretch"])
     assert 2 <= i < len(segs) - 2 or len(segs) <= 4 or all(not (2 <= k < len(segs) - 2) or segs[k]["ticket_count"] < config.CONF_MED for k in range(len(segs)))
+
+
+def test_no_hotspot_suggests_more_extra_buses_than_scheduled(client):
+    for hour in (9, 18):
+        rows = client.get("/api/operator/hotspots", params=dict(day_type="weekday", hour=hour, limit=200)).json()["hotspots"]
+        assert rows and all(r["suggested_extra_buses_hr"] <= r["scheduled_buses_hr"] for r in rows)
+
+
+def test_top_hotspots_are_not_schedule_artifacts(client):
+    rows = client.get("/api/operator/hotspots", params=dict(day_type="weekday", hour=9, limit=20)).json()["hotspots"]
+    assert not all(r["schedule_undercount"] for r in rows)
+    assert all(r["load_ratio_raw"] <= config.SCHEDULE_UNDERCOUNT_RATIO or r["schedule_undercount"] for r in rows)
+    assert all(r["schedule_undercount"] == (r["load_ratio_raw"] > config.SCHEDULE_UNDERCOUNT_RATIO) for r in rows)   # flag matches the raw ratio
+
+
+def test_summary_carries_schedule_undercount_flag(client):
+    rows = client.get("/api/routes/summary", params=dict(day_type="weekday", hour=9)).json()["routes"]
+    assert all("schedule_undercount" in r for r in rows)
+    assert all(r["schedule_undercount"] == (r["load_ratio_raw"] is not None and r["load_ratio_raw"] > config.SCHEDULE_UNDERCOUNT_RATIO) for r in rows)

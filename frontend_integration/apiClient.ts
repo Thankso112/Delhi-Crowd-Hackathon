@@ -25,7 +25,7 @@ export interface DepartureShift { shift_minutes: number; departure_time: string;
 /** One row per route-direction from GET /api/routes/summary (busiest qualifying stretch; terminal hops ignored). 'unknown' rows have null load/stretch and confidence 'low'. */
 export interface RouteSummaryRow {
   route_id: string; route_short_name: string; direction_id: number; direction: 'Up' | 'Down' | null; route_long_name: string;
-  busiest_stretch: string | null; load_ratio_raw: number | null; load_pct: number | null;   // load_pct is capped at 100, load_ratio_raw is not
+  busiest_stretch: string | null; load_ratio_raw: number | null; schedule_undercount: boolean; load_pct: number | null;   // load_pct is capped at 100, load_ratio_raw is not
   crowd_level: CrowdTier; confidence: Confidence; prediction_source: PredictionSource; ticket_count: number; scheduled_buses_hr: number;
 }
 export interface RoutesSummaryResponse { day_type: DayType; hour: number; count: number; routes: RouteSummaryRow[] }

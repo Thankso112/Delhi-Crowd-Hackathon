@@ -382,7 +382,7 @@ Every number below is from the real run (long lists shortened with `...`).
 ```
 
 ## GET /api/routes/summary?day_type=weekday&hour=9
-One row per route-direction (2,574 in the current data: `counts.route_directions` in `/api/health`). `busiest_stretch` is the stretch with the highest UNCAPPED load that is at least 3 stops from either end of the route (terminal hops ignored) and has `ticket_count >= 10`; if no stretch qualifies, all stretches with data are used. `load_pct` is capped at 100 for display, `load_ratio_raw` is not capped. Routes with no data at that hour get `crowd_level: "unknown"`, `confidence: "low"` and null load/stretch. `ticket_count`, `confidence`, `prediction_source` and `scheduled_buses_hr` describe the busiest stretch.
+One row per route-direction (2,574 in the current data: `counts.route_directions` in `/api/health`). `busiest_stretch` is the stretch with the highest UNCAPPED load that is at least 3 stops from either end of the route (terminal hops ignored) and has `ticket_count >= 10`; if no stretch qualifies, all stretches with data are used. `load_pct` is capped at 100 for display, `load_ratio_raw` is not capped. `schedule_undercount` is true when `load_ratio_raw > 3`. Routes with no data at that hour get `crowd_level: "unknown"`, `confidence: "low"` and null load/stretch. `ticket_count`, `confidence`, `prediction_source` and `scheduled_buses_hr` describe the busiest stretch.
 ```json
 {
   "day_type": "weekday", "hour": 9, "count": 2574,
@@ -400,7 +400,7 @@ One row per route-direction (2,574 in the current data: `counts.route_directions
 ```
 
 ## GET /api/operator/hotspots?day_type=weekday&hour=9&limit=2&min_confidence=medium
-Ranked by `load_ratio_raw` (uncapped) so rows are not tied at the cap. `load_ratio` / `load_pct` / `estimated_load` stay capped (1.5x) for display; `load_ratio_raw`, `load_pct_raw` and `estimated_load_raw` are uncapped; `suggested_extra_buses_hr` uses `estimated_load_raw`. `hourly_network` uses medium+ confidence cells only; hours with none have `cells: 0` and null values; `overloaded_count` = route-directions with a crowded stretch at medium+ confidence.
+Ranked by a BOUNDED raw load, `min(load_ratio_raw, 3.0)`, then `ticket_count`. Rows with `load_ratio_raw > 3` get `schedule_undercount: true` (the GTFS schedule probably lists fewer buses than actually run, so tickets / listed buses blows up); they are ranked after unflagged rows and the UI should show a "check schedule data" warning, not a crowd emergency. `load_ratio_raw` itself stays uncapped. `suggested_extra_buses_hr` is capped at `scheduled_buses_hr` (never more than doubling the listed service). `load_ratio` / `load_pct` / `estimated_load` stay capped (1.5x) for display; `load_ratio_raw`, `load_pct_raw` and `estimated_load_raw` are uncapped; `suggested_extra_buses_hr` uses `estimated_load_raw`. `hourly_network` uses medium+ confidence cells only; hours with none have `cells: 0` and null values; `overloaded_count` = route-directions with a crowded stretch at medium+ confidence.
 ```json
 {
   "day_type": "weekday",

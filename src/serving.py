@@ -273,12 +273,12 @@ class CrowdStore:
                 sched = int(a["n_sched"][bi]) if bi is not None else int(self.trips_hr.get((rn, int(hour)), 0))      # buses/hr on the busiest stretch (same meaning as in hotspots)
                 base["scheduled_buses_hr"] = sched
                 if bi is None:
-                    rows.append(dict(base, busiest_stretch=None, load_ratio_raw=None, load_pct=None, crowd_level="unknown", confidence="low",
+                    rows.append(dict(base, busiest_stretch=None, load_ratio_raw=None, schedule_undercount=False, load_pct=None, crowd_level="unknown", confidence="low",
                                      prediction_source="route_average", ticket_count=0))
                     continue
                 lr = float(a["load_ratio"][bi])
                 rows.append(dict(base, busiest_stretch=s["name"][bi] + " \u2013 " + s["name"][bi + 1], load_ratio_raw=round(float(a["load_ratio_raw"][bi]), 3),
-                                 load_pct=min(100, round(lr * 100)), crowd_level=TIER_ORDER[a["tier"][bi]], confidence=str(confidence_of(a["tix"][bi])),
+                                 schedule_undercount=bool(a["load_ratio_raw"][bi] > config.SCHEDULE_UNDERCOUNT_RATIO), load_pct=min(100, round(lr * 100)), crowd_level=TIER_ORDER[a["tier"][bi]], confidence=str(confidence_of(a["tix"][bi])),
                                  prediction_source=SRC_CODES[a["src"][bi]], ticket_count=int(a["tix"][bi])))
             cache[key] = rows
         rows = cache[key]
@@ -291,13 +291,19 @@ class CrowdStore:
         if hour is not None:
             m &= ct.hour == int(hour)
         m &= ct.ticket_count >= {"low": 0, "medium": config.CONF_MED, "high": config.CONF_HIGH}.get(min_confidence, config.CONF_MED)
-        top = (ct[m].sort_values(["load_ratio_raw", "ticket_count"], ascending=False)
-                 .drop_duplicates("route_n").head(max(1, min(int(limit), 200))))          # one row per route-direction: its busiest stretch
+        # Rank by a BOUNDED load so one schedule gap (few listed buses, many riders) cannot dominate: min(raw ratio, RANK_CAP), then tickets.
+        # Rows with a raw ratio above SCHEDULE_UNDERCOUNT_RATIO are flagged schedule_undercount (GTFS probably lists fewer buses than run) and ranked after
+        # the unflagged rows; they are still returned (with the flag) once the unflagged ones run out.
+        cand = ct[m].assign(_under=ct.loc[m, "load_ratio_raw"] > config.SCHEDULE_UNDERCOUNT_RATIO,
+                            _rank=ct.loc[m, "load_ratio_raw"].clip(upper=config.SCHEDULE_UNDERCOUNT_RATIO))
+        top = (cand.sort_values(["_under", "_rank", "ticket_count"], ascending=[True, False, False])
+                   .drop_duplicates("route_n").head(max(1, min(int(limit), 200))))          # one row per route-direction: its busiest stretch
         rows = []
         for k, c in enumerate(top.itertuples(), 1):
             s, r = self.stops_of[c.route_n], self.routes.loc[c.route_n]
             target = c.capacity * config.STANDING_FRACTION_OF_CRUSH
             extra = int(max(1, math.ceil((c.est_load_raw / target - 1) * c.n_sched))) if c.est_load_raw > target else 0
+            extra = min(extra, int(c.n_sched))                       # never suggest more than doubling the listed service
             cap = config.CAPACITY["ac" if self.attrs.is_ac.get(c.route_n, 0) else "nonac"]
             rows.append(dict(rank=k, route_id=str(r.route_id), route_short_name=r.route, direction_id=int(r.direction_id), hour=int(c.hour),
                              is_ac=bool(self.attrs.is_ac.get(c.route_n, 0)), from_stop_id=s["stop_id"][c.pos], from_stop_name=s["name"][c.pos],
@@ -306,6 +312,7 @@ class CrowdStore:
                              seated_capacity=cap["seats"], capacity=int(c.capacity), load_ratio=round(float(c.load_ratio), 3),
                              load_ratio_raw=round(float(c.load_ratio_raw), 3), load_pct_raw=int(round(float(c.load_ratio_raw) * 100)), estimated_load_raw=round(float(c.est_load_raw), 1),
                              crowd_level=c.crowd_level,
+                             schedule_undercount=bool(c.load_ratio_raw > config.SCHEDULE_UNDERCOUNT_RATIO),
                              scheduled_buses_hr=int(c.n_sched), suggested_extra_buses_hr=extra, ticket_count=int(c.ticket_count),
                              confidence=str(confidence_of(c.ticket_count)), prediction_source=c.prediction_source,
                              route_long_name=s["name"][0] + " to " + s["name"][-1], corridor=s["name"][0] + " \u2013 " + s["name"][-1],
