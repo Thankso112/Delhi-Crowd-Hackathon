@@ -1,0 +1,12 @@
+.env
+__pycache__/
+.ipynb_checkpoints/
+.pytest_cache/
+.DS_Store
+*.sqlite
+data/raw/tickets.csv
+data/raw/gtfs/*.txt
+
+.venv/
+*.log
+
