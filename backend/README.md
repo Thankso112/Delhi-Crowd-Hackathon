@@ -188,7 +188,7 @@ backend/
 
 ## 🔗 Frontend
 
-The web app that uses this API: [CrowdWise-Delhi](https://github.com/sujitnayak-web/CrowdWise-Delhi)
+The web app that uses this API: [CrowdWise-Delhi](https://crowdwise-delhi.ai.studio/#/crowd-map)
 
 ---
 
