@@ -1,13 +1,15 @@
 # API contract - CrowdWise Delhi backend
 
 Base URL (local): `http://localhost:8000` - start with `uvicorn planner.app:app --host 0.0.0.0 --port 8000`.
-Interactive docs: `http://localhost:8000/docs`. CORS is open to every origin (`*`), including the private-network preflight, so a page served from a public https address can call a server on `localhost`.
+Base URL (deployed, Google Cloud Run): `https://delhi-crowd-hackathon-1026044669617.asia-south1.run.app` - every path below works against either base URL.
+Interactive docs: `{base}/docs` (local: `http://localhost:8000/docs`; deployed: `https://delhi-crowd-hackathon-1026044669617.asia-south1.run.app/docs`). CORS is open to every origin (`*`), including the private-network preflight, so a page served from a public https address can call a server on `localhost`.
 All responses are JSON. Errors always look like `{"error": {"code", "message", "details"}}` - never an HTML page.
 Numbers below come from the real run (long lists shortened with `...`). The plan and route examples were captured before the ML fallback was switched off, so their load values and `prediction_source` can differ from the live API; `/docs` shows live output.
 
 **Crowd tiers:** `seats_available` | `standing_room` | `crowded` (and `unknown` when no bus is scheduled at that hour). **Confidence:** `high` | `medium` | `low`.
 **`prediction_source`:** `observed_tickets` (10+ tickets behind the number), `ml_fallback` (reserved: the ML fallback is disabled, so the API does not return it), `route_average` (fallback to the route-hour / route-band average).
 **`load_ratio`** = estimated people on board / bus capacity (calibrated, capped at 1.5). Show *crowd_level* to commuters; do not recompute the tier from the ratio in the UI.
+**`schedule_undercount`** = true when `load_ratio_raw > 3` (the GTFS schedule probably lists fewer buses than actually run). Show a "check schedule data" warning, not a crowd emergency.
 
 ## Endpoints
 | Endpoint | Purpose |
@@ -17,7 +19,7 @@ Numbers below come from the real run (long lists shortened with `...`). The plan
 | `GET /api/plan?origin=&destination=&time=HH:MM&day_type=weekday\|weekend&preference=balanced\|fastest\|comfortable` | journey options with crowd per leg + departure shifts. `origin`/`destination` accept a stop name, a stop_id, or `lat,lon` (or use `olat,olon,dlat,dlon`) |
 | `GET /api/routes?q=&limit=100&offset=0` | route-directions |
 | `GET /api/routes/{route_id}/crowd?day_type=&hour=&direction_id=` | stops, polyline and per-stretch crowd (`route_id` can be the GTFS id, the short name like `425DOWN`, or the number `425`) |
-| `GET /api/operator/hotspots?day_type=&hour=&limit=20&min_confidence=medium\|low\|high` | most overloaded route-directions (one row each: its busiest stretch), ranked by UNCAPPED load (`load_ratio_raw`), then ticket count. Default `min_confidence=medium` |
+| `GET /api/operator/hotspots?day_type=&hour=&limit=20&min_confidence=medium\|low\|high` | most overloaded route-directions (one row each: its busiest stretch), ranked by BOUNDED raw load `min(load_ratio_raw, 3.0)`, then ticket count; rows with `schedule_undercount: true` come after unflagged rows. Default `min_confidence=medium` |
 | `GET /api/routes/summary?day_type=&hour=` | one row per route-direction for the map: its busiest qualifying stretch (see below) |
 | `GET /api/operator/network-profile?day_type=` | average load ratio per hour (for the operator bar chart) |
 | `GET /api/validation/summary` | validation numbers from the real run |
@@ -73,12 +75,7 @@ Numbers below come from the real run (long lists shortened with `...`). The plan
       "lon": 77.257,
       "match_score": 92,
       "routes_count": 65,
-      "sample_routes": [
-        "244UP",
-        "306UP",
-        "374ADOWN",
-        "..."
-      ]
+      "sample_routes": ["244UP", "306UP", "374ADOWN", "..."]
     },
     {
       "stop_id": "2280",
@@ -89,12 +86,7 @@ Numbers below come from the real run (long lists shortened with `...`). The plan
       "lon": 77.254,
       "match_score": 92,
       "routes_count": 50,
-      "sample_routes": [
-        "0543A(NS)UP",
-        "0TMS(+)(NS)UP",
-        "243DOWN",
-        "..."
-      ]
+      "sample_routes": ["0543A(NS)UP", "0TMS(+)(NS)UP", "243DOWN", "..."]
     }
   ]
 }
@@ -146,18 +138,8 @@ Numbers below come from the real run (long lists shortened with `...`). The plan
         {
           "route_id": "1886",
           "route_short_name": "39AUP",
-          "from_stop": {
-            "stop_id": "5694",
-            "stop_name": "Anand Vihar",
-            "lat": 28.658,
-            "lng": 77.311
-          },
-          "to_stop": {
-            "stop_id": "813",
-            "stop_name": "Rainy Well",
-            "lat": 28.628,
-            "lng": 77.261
-          },
+          "from_stop": {"stop_id": "5694", "stop_name": "Anand Vihar", "lat": 28.658, "lng": 77.311},
+          "to_stop": {"stop_id": "813", "stop_name": "Rainy Well", "lat": 28.628, "lng": 77.261},
           "departure_time": "18:11",
           "arrival_time": "18:31",
           "ride_min": 20.7,
@@ -171,41 +153,14 @@ Numbers below come from the real run (long lists shortened with `...`). The plan
           "ticket_count": 96,
           "confidence": "low",
           "prediction_source": "route_average",
-          "path": [
-            [
-              28.658,
-              77.311
-            ],
-            [
-              28.658,
-              77.311
-            ],
-            [
-              "..."
-            ]
-          ],
-          "stop_sequence": [
-            "Anand Vihar",
-            "Ram Vihar",
-            "Jagriti Enclave",
-            "..."
-          ]
+          "path": [[28.658, 77.311], [28.658, 77.311], ["..."]],
+          "stop_sequence": ["Anand Vihar", "Ram Vihar", "Jagriti Enclave", "..."]
         },
         {
           "route_id": "2342",
           "route_short_name": "85EXTUP",
-          "from_stop": {
-            "stop_id": "813",
-            "stop_name": "Rainy Well",
-            "lat": 28.628,
-            "lng": 77.261
-          },
-          "to_stop": {
-            "stop_id": "5100",
-            "stop_name": "Shivaji Stadium Terminal",
-            "lat": 28.633,
-            "lng": 77.215
-          },
+          "from_stop": {"stop_id": "813", "stop_name": "Rainy Well", "lat": 28.628, "lng": 77.261},
+          "to_stop": {"stop_id": "5100", "stop_name": "Shivaji Stadium Terminal", "lat": 28.633, "lng": 77.215},
           "departure_time": "18:37",
           "arrival_time": "18:53",
           "ride_min": 15.7,
@@ -219,25 +174,8 @@ Numbers below come from the real run (long lists shortened with `...`). The plan
           "ticket_count": 242,
           "confidence": "high",
           "prediction_source": "observed_tickets",
-          "path": [
-            [
-              28.628,
-              77.261
-            ],
-            [
-              28.628,
-              77.252
-            ],
-            [
-              "..."
-            ]
-          ],
-          "stop_sequence": [
-            "Rainy Well",
-            "Delhi Secretariat",
-            "ITO AGCR /  ITO",
-            "..."
-          ]
+          "path": [[28.628, 77.261], [28.628, 77.252], ["..."]],
+          "stop_sequence": ["Rainy Well", "Delhi Secretariat", "ITO AGCR /  ITO", "..."]
         }
       ],
       "walk_to_first_m": 38,
@@ -330,31 +268,10 @@ Numbers below come from the real run (long lists shortened with `...`). The plan
     "scheduled_buses_hr": 7
   },
   "stops": [
-    {
-      "sequence": 0,
-      "stop_id": "2301",
-      "stop_name": "Hamdard Nagar / Sangam Vihar",
-      "lat": 28.512,
-      "lng": 77.249
-    },
-    {
-      "sequence": 1,
-      "stop_id": "2302",
-      "stop_name": "Majeedia Hospital",
-      "lat": 28.515,
-      "lng": 77.253
-    }
+    {"sequence": 0, "stop_id": "2301", "stop_name": "Hamdard Nagar / Sangam Vihar", "lat": 28.512, "lng": 77.249},
+    {"sequence": 1, "stop_id": "2302", "stop_name": "Majeedia Hospital", "lat": 28.515, "lng": 77.253}
   ],
-  "polyline": [
-    [
-      28.512,
-      77.249
-    ],
-    [
-      28.515,
-      77.253
-    ]
-  ],
+  "polyline": [[28.512, 77.249], [28.515, 77.253]],
   "segments": [
     {
       "sequence": 0,
@@ -390,10 +307,12 @@ One row per route-direction (2,574 in the current data: `counts.route_directions
     {"route_id": "1", "route_short_name": "102ADOWN", "direction_id": 1, "direction": "Down",
      "route_long_name": "Rohini Sec 22 Terminal to Azadpur Terminal",
      "busiest_stretch": "Rohini Sec 7 and sec 8,9 \u2013 Rohini Sec 7/8/9 Crossing",
-     "load_ratio_raw": 0.769, "load_pct": 77, "crowd_level": "crowded", "confidence": "medium",
+     "load_ratio_raw": 0.769, "load_pct": 77, "schedule_undercount": false,
+     "crowd_level": "standing_room", "confidence": "medium",
      "prediction_source": "observed_tickets", "ticket_count": 22, "scheduled_buses_hr": 1},
     {"route_id": "...", "route_short_name": "...", "direction_id": 0, "direction": "Up", "route_long_name": "...",
-     "busiest_stretch": null, "load_ratio_raw": null, "load_pct": null, "crowd_level": "unknown", "confidence": "low",
+     "busiest_stretch": null, "load_ratio_raw": null, "load_pct": null, "schedule_undercount": false,
+     "crowd_level": "unknown", "confidence": "low",
      "prediction_source": "route_average", "ticket_count": 0, "scheduled_buses_hr": 0}
   ]
 }
@@ -401,6 +320,8 @@ One row per route-direction (2,574 in the current data: `counts.route_directions
 
 ## GET /api/operator/hotspots?day_type=weekday&hour=9&limit=2&min_confidence=medium
 Ranked by a BOUNDED raw load, `min(load_ratio_raw, 3.0)`, then `ticket_count`. Rows with `load_ratio_raw > 3` get `schedule_undercount: true` (the GTFS schedule probably lists fewer buses than actually run, so tickets / listed buses blows up); they are ranked after unflagged rows and the UI should show a "check schedule data" warning, not a crowd emergency. `load_ratio_raw` itself stays uncapped. `suggested_extra_buses_hr` is capped at `scheduled_buses_hr` (never more than doubling the listed service). `load_ratio` / `load_pct` / `estimated_load` stay capped (1.5x) for display; `load_ratio_raw`, `load_pct_raw` and `estimated_load_raw` are uncapped; `suggested_extra_buses_hr` uses `estimated_load_raw`. `hourly_network` uses medium+ confidence cells only; hours with none have `cells: 0` and null values; `overloaded_count` = route-directions with a crowded stretch at medium+ confidence.
+
+The raw fields (`load_ratio_raw`, `load_pct_raw`, `estimated_load_raw`) and `schedule_undercount` are present on every row; they are omitted from the first example row only to keep it short.
 ```json
 {
   "day_type": "weekday",
@@ -410,6 +331,33 @@ Ranked by a BOUNDED raw load, `min(load_ratio_raw, 3.0)`, then `ticket_count`. R
   "hotspots": [
     {
       "rank": 1,
+      "route_id": "3369",
+      "route_short_name": "D-7701AUP",
+      "direction_id": 0,
+      "hour": 9,
+      "is_ac": true,
+      "from_stop_id": "9972",
+      "from_stop_name": "Gaushala Road",
+      "to_stop_id": "9971",
+      "to_stop_name": "South Asian University",
+      "from_lat": 28.483,
+      "from_lng": 77.189,
+      "to_lat": 28.482,
+      "to_lng": 77.201,
+      "estimated_load": 90.0,
+      "seated_capacity": 33,
+      "capacity": 60,
+      "load_ratio": 1.5,
+      "crowd_level": "crowded",
+      "schedule_undercount": false,
+      "scheduled_buses_hr": 2,
+      "suggested_extra_buses_hr": 2,
+      "ticket_count": 570,
+      "confidence": "high",
+      "prediction_source": "observed_tickets"
+    },
+    {
+      "rank": 2,
       "route_id": "2040",
       "route_short_name": "525UP",
       "direction_id": 0,
@@ -431,41 +379,17 @@ Ranked by a BOUNDED raw load, `min(load_ratio_raw, 3.0)`, then `ticket_count`. R
       "load_pct_raw": 1557,
       "estimated_load_raw": 934.2,
       "crowd_level": "crowded",
-      "scheduled_buses_hr": 2,
-      "suggested_extra_buses_hr": 40,
-      "ticket_count": 826,
-      "confidence": "high",
-      "prediction_source": "observed_tickets"
-    },
-    {
-      "rank": 2,
-      "route_id": "3369",
-      "route_short_name": "D-7701AUP",
-      "direction_id": 0,
-      "hour": 9,
-      "is_ac": true,
-      "from_stop_id": "9972",
-      "from_stop_name": "Gaushala Road",
-      "to_stop_id": "9971",
-      "to_stop_name": "South Asian University",
-      "from_lat": 28.483,
-      "from_lng": 77.189,
-      "to_lat": 28.482,
-      "to_lng": 77.201,
-      "estimated_load": 90.0,
-      "seated_capacity": 33,
-      "capacity": 60,
-      "load_ratio": 1.5,
-      "crowd_level": "crowded",
+      "schedule_undercount": true,
       "scheduled_buses_hr": 2,
       "suggested_extra_buses_hr": 2,
-      "ticket_count": 570,
+      "ticket_count": 826,
       "confidence": "high",
       "prediction_source": "observed_tickets"
     }
   ]
 }
 ```
+(Row 2 is flagged `schedule_undercount: true` because its raw ratio is 15.57, so it is ranked after the unflagged row 1 even though it has more tickets, and its `suggested_extra_buses_hr` is capped at its 2 listed buses.)
 
 ## GET /api/operator/network-profile?day_type=weekday
 Only cells with `ticket_count >= 10`. All 24 hours are returned; hours with no such cells have `cells: 0` and null `avg_load_ratio` / `crowded_share`.
@@ -473,31 +397,16 @@ Only cells with `ticket_count >= 10`. All 24 hours are returned; hours with no s
 {
   "day_type": "weekday",
   "hours": [
-    {
-      "hour": 0,
-      "avg_load_ratio": 0.431,
-      "crowded_share": 0.158,
-      "cells": 279
-    },
-    {
-      "hour": 1,
-      "avg_load_ratio": 0.542,
-      "crowded_share": 0.241,
-      "cells": 145
-    },
-    {
-      "hour": 2,
-      "avg_load_ratio": 0.452,
-      "crowded_share": 0.043,
-      "cells": 116
-    },
+    {"hour": 0, "avg_load_ratio": 0.431, "crowded_share": 0.158, "cells": 279},
+    {"hour": 1, "avg_load_ratio": 0.542, "crowded_share": 0.241, "cells": 145},
+    {"hour": 2, "avg_load_ratio": 0.452, "crowded_share": 0.043, "cells": 116},
     "..."
   ]
 }
 ```
 
 ## GET /api/validation/summary
-New: `headline_accuracy` (cells with 10+ test tickets: R2 0.79 unseen days, 0.74 unseen routes for the served shrinkage model, with baselines, best ML model, tier accuracy and macro-F1) and `what_is_validated` (this validates ticket volume per cell; the crowd tier also depends on the assumed capacity and scale factor). `fallback_stats` is computed from the served table (ML fallback off).
+Includes `headline_accuracy` (cells with 10+ test tickets: R2 0.79 unseen days, 0.74 unseen routes for the served shrinkage model, with baselines, best ML model, tier accuracy and macro-F1) and `what_is_validated` (this validates ticket volume per cell; the crowd tier also depends on the assumed capacity and scale factor). Both keys are omitted from the example below for brevity; `/docs` shows them live. `fallback_stats` is computed from the served table (ML fallback off).
 ```json
 {
   "mode": "real",
@@ -506,10 +415,7 @@ New: `headline_accuracy` (cells with 10+ test tickets: R2 0.79 unseen days, 0.74
     "null_vehicle_share": 0.485,
     "stop_match_rate_on_route_pct": 87.5,
     "tickets_usable_share": 0.895,
-    "holiday_dates_treated_as_weekend": [
-      "2026-10-02",
-      "2026-10-20"
-    ],
+    "holiday_dates_treated_as_weekend": ["2026-10-02", "2026-10-20"],
     "n_crowd_cells": 1770724
   },
   "temporal_holdout_w1_w3_to_w4": {
@@ -519,20 +425,8 @@ New: `headline_accuracy` (cells with 10+ test tickets: R2 0.79 unseen days, 0.74
     "mae_people": 7.351,
     "spearman": 0.875,
     "baselines": [
-      {
-        "predictor": "City baseline (band average)",
-        "cells": 172773,
-        "tier_agreement_pct": 68.366,
-        "MAE_people": 19.057,
-        "spearman": 0.186
-      },
-      {
-        "predictor": "Route baseline (route x band)",
-        "cells": 172773,
-        "tier_agreement_pct": 73.902,
-        "MAE_people": 12.638,
-        "spearman": 0.697
-      }
+      {"predictor": "City baseline (band average)", "cells": 172773, "tier_agreement_pct": 68.366, "MAE_people": 19.057, "spearman": 0.186},
+      {"predictor": "Route baseline (route x band)", "cells": 172773, "tier_agreement_pct": 73.902, "MAE_people": 12.638, "spearman": 0.697}
     ],
     "note": "evaluated on cells with 10+ tickets in the unseen period"
   },
@@ -541,68 +435,18 @@ New: `headline_accuracy` (cells with 10+ test tickets: R2 0.79 unseen days, 0.74
     "split_half_first_vs_second_half_spearman": 0.911
   },
   "sensitivity": [
-    {
-      "scenario": "low",
-      "scale": 20.0,
-      "seats_available": 97.9,
-      "standing_room": 1.1,
-      "crowded": 1.0,
-      "same_tier_as_base_pct": 92.6,
-      "same_tier_high_confidence_pct": 76.4
-    },
-    {
-      "scenario": "base",
-      "scale": 42.9,
-      "seats_available": 91.6,
-      "standing_room": 3.5,
-      "crowded": 4.9,
-      "same_tier_as_base_pct": 100.0,
-      "same_tier_high_confidence_pct": 100.0
-    },
-    {
-      "scenario": "high",
-      "scale": 66.7,
-      "seats_available": 84.4,
-      "standing_room": 5.7,
-      "crowded": 10.0,
-      "same_tier_as_base_pct": 89.2,
-      "same_tier_high_confidence_pct": 69.5
-    }
+    {"scenario": "low", "scale": 20.0, "seats_available": 97.9, "standing_room": 1.1, "crowded": 1.0, "same_tier_as_base_pct": 92.6, "same_tier_high_confidence_pct": 76.4},
+    {"scenario": "base", "scale": 42.9, "seats_available": 91.6, "standing_room": 3.5, "crowded": 4.9, "same_tier_as_base_pct": 100.0, "same_tier_high_confidence_pct": 100.0},
+    {"scenario": "high", "scale": 66.7, "seats_available": 84.4, "standing_room": 5.7, "crowded": 10.0, "same_tier_as_base_pct": 89.2, "same_tier_high_confidence_pct": 69.5}
   ],
   "organizer_curve_check": [
-    {
-      "daytype": "weekday",
-      "hour": 9,
-      "organizer": 13000,
-      "ours": 14327.0,
-      "difference_pct": 10.2
-    },
-    {
-      "daytype": "weekday",
-      "hour": 18,
-      "organizer": 8500,
-      "ours": 9902.0,
-      "difference_pct": 16.5
-    },
-    {
-      "daytype": "weekend",
-      "hour": 9,
-      "organizer": 8000,
-      "ours": 7971.0,
-      "difference_pct": -0.4
-    },
+    {"daytype": "weekday", "hour": 9, "organizer": 13000, "ours": 14327.0, "difference_pct": 10.2},
+    {"daytype": "weekday", "hour": 18, "organizer": 8500, "ours": 9902.0, "difference_pct": 16.5},
+    {"daytype": "weekend", "hour": 9, "organizer": 8000, "ours": 7971.0, "difference_pct": -0.4},
     "..."
   ],
-  "tier_distribution": {
-    "crowded": 0.061,
-    "seats_available": 0.899,
-    "standing_room": 0.04
-  },
-  "confidence_distribution": {
-    "low": 0.701,
-    "medium": 0.17,
-    "high": 0.129
-  },
+  "tier_distribution": {"crowded": 0.061, "seats_available": 0.899, "standing_room": 0.04},
+  "confidence_distribution": {"low": 0.701, "medium": 0.17, "high": 0.129},
   "fallback_stats": {
     "total_segments": 1770724,
     "observed_segments": 529075,
@@ -632,132 +476,41 @@ New: `headline_accuracy` (cells with 10+ test tickets: R2 0.79 unseen days, 0.74
     "route_average_segments": 1241649
   },
   "regression_models": [
-    {
-      "name": "OLS (linear regression)",
-      "mae": 0.19,
-      "rmse": 0.243,
-      "r2": 0.711,
-      "mae_sparse": 0.231
-    },
-    {
-      "name": "Ridge",
-      "mae": 0.19,
-      "rmse": 0.243,
-      "r2": 0.711,
-      "mae_sparse": 0.231
-    },
-    {
-      "name": "Lasso",
-      "mae": 0.191,
-      "rmse": 0.244,
-      "r2": 0.708,
-      "mae_sparse": 0.233
-    },
+    {"name": "OLS (linear regression)", "mae": 0.19, "rmse": 0.243, "r2": 0.711, "mae_sparse": 0.231},
+    {"name": "Ridge", "mae": 0.19, "rmse": 0.243, "r2": 0.711, "mae_sparse": 0.231},
+    {"name": "Lasso", "mae": 0.191, "rmse": 0.244, "r2": 0.708, "mae_sparse": 0.233},
     "..."
   ],
   "baselines": [
-    {
-      "name": "BASELINE route x hour average (weeks 1-2)",
-      "mae": 0.293,
-      "rmse": 0.406,
-      "r2": 0.197,
-      "mae_sparse": 0.452
-    },
-    {
-      "name": "BASELINE weeks 1-2 shrinkage estimate",
-      "mae": 0.21,
-      "rmse": 0.313,
-      "r2": 0.522,
-      "mae_sparse": 0.451
-    }
+    {"name": "BASELINE route x hour average (weeks 1-2)", "mae": 0.293, "rmse": 0.406, "r2": 0.197, "mae_sparse": 0.452},
+    {"name": "BASELINE weeks 1-2 shrinkage estimate", "mae": 0.21, "rmse": 0.313, "r2": 0.522, "mae_sparse": 0.451}
   ],
   "classification_models": [
-    {
-      "name": "KNN (k=15, chosen on validation)",
-      "accuracy": 0.703,
-      "macro_f1": 0.578
-    },
-    {
-      "name": "SVM (RBF, class_weight=balanced, 12k-row cap)",
-      "accuracy": 0.696,
-      "macro_f1": 0.646
-    },
-    {
-      "name": "BASELINE tier from weeks 1-2 shrinkage estimate",
-      "accuracy": 0.691,
-      "macro_f1": 0.609
-    },
+    {"name": "KNN (k=15, chosen on validation)", "accuracy": 0.703, "macro_f1": 0.578},
+    {"name": "SVM (RBF, class_weight=balanced, 12k-row cap)", "accuracy": 0.696, "macro_f1": 0.646},
+    {"name": "BASELINE tier from weeks 1-2 shrinkage estimate", "accuracy": 0.691, "macro_f1": 0.609},
     "..."
   ],
   "best_classifier": "SVM (RBF, class_weight=balanced, 12k-row cap)",
-  "knn_k_scores": {
-    "3": 0.575,
-    "5": 0.574,
-    "9": 0.581,
-    "15": 0.582,
-    "25": 0.581,
-    "45": 0.571
-  },
+  "knn_k_scores": {"3": 0.575, "5": 0.574, "9": 0.581, "15": 0.582, "25": 0.581, "45": 0.571},
   "confusion_matrix": {
-    "labels": [
-      "seats_available",
-      "standing_room",
-      "crowded"
-    ],
+    "labels": ["seats_available", "standing_room", "crowded"],
     "matrix": [
-      [
-        70787,
-        24380,
-        4310
-      ],
-      [
-        8940,
-        19428,
-        11145
-      ],
-      [
-        3089,
-        22706,
-        80598
-      ]
+      [70787, 24380, 4310],
+      [8940, 19428, 11145],
+      [3089, 22706, 80598]
     ]
   },
   "feature_importance": [
-    {
-      "feature": "own_A_idx_ratio",
-      "weight": 0.364
-    },
-    {
-      "feature": "buses_per_hour",
-      "weight": 0.271
-    },
-    {
-      "feature": "own_A_tix",
-      "weight": 0.133
-    }
+    {"feature": "own_A_idx_ratio", "weight": 0.364},
+    {"feature": "buses_per_hour", "weight": 0.271},
+    {"feature": "own_A_tix", "weight": 0.133}
   ],
-  "lasso_zeroed_features": [
-    "hour",
-    "is_pm_peak",
-    "is_up",
-    "..."
-  ],
+  "lasso_zeroed_features": ["hour", "is_pm_peak", "is_up", "..."],
   "top_correlated_pairs": [
-    {
-      "feature_a": "n_stops",
-      "feature_b": "route_len_km",
-      "pearson_r": 0.924
-    },
-    {
-      "feature_a": "own_A_idx_ratio",
-      "feature_b": "routehour_A_idx_ratio",
-      "pearson_r": 0.84
-    },
-    {
-      "feature_a": "pos",
-      "feature_b": "pos_frac",
-      "pearson_r": 0.785
-    },
+    {"feature_a": "n_stops", "feature_b": "route_len_km", "pearson_r": 0.924},
+    {"feature_a": "own_A_idx_ratio", "feature_b": "routehour_A_idx_ratio", "pearson_r": 0.84},
+    {"feature_a": "pos", "feature_b": "pos_frac", "pearson_r": 0.785},
     "..."
   ],
   "caveats": [
